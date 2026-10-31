@@ -1,0 +1,58 @@
+/**
+ * print.css — @media print styles for /invoices/:id
+ *
+ * Import this file in InvoiceDetailPage.jsx.
+ * ONLY the #invoice-document is printed.
+ * A4-friendly, black on white, no shadows.
+ */
+
+@media print {
+  /* Hide everything */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show only the invoice document */
+  #invoice-document,
+  #invoice-document * {
+    display: revert !important;
+    visibility: visible !important;
+  }
+
+  #invoice-document {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 12mm;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  /* Force white background on header band */
+  #invoice-document .bg-gradient-to-r,
+  #invoice-document [class*="bg-brand"],
+  #invoice-document [class*="bg-violet"] {
+    background: #1e293b !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove hover effects */
+  #invoice-document tr:hover {
+    background: none !important;
+  }
+
+  /* A4 page settings */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}

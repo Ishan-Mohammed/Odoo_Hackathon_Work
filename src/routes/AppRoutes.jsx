@@ -20,6 +20,11 @@ import GenericPlaceholderPage from '../pages/GenericPlaceholderPage';
 import DevComponentsPage from '../pages/DevComponentsPage';
 import NotFound from '../pages/NotFound';
 
+// Invoices & Payments (live pages)
+import InvoicesPage from '../pages/invoices/InvoicesPage';
+import InvoiceDetailPage from '../pages/invoices/InvoiceDetailPage';
+import PaymentsPage from '../pages/payments/PaymentsPage';
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -148,34 +153,9 @@ export default function AppRoutes() {
             />
           }
         />
-        <Route
-          path="/invoices"
-          element={
-            <GenericPlaceholderPage
-              title="Invoices"
-              subtitle="Invoice ledger, payment statuses, and overdue reconciliation"
-            />
-          }
-        />
-        <Route
-          path="/invoices/:id"
-          element={
-            <GenericPlaceholderPage
-              title="Invoice Details"
-              subtitle="Breakdown of taxes, discounts, line items, and payment status"
-              breadcrumb={[{ label: 'Invoices', href: '/invoices' }, { label: 'Details' }]}
-            />
-          }
-        />
-        <Route
-          path="/payments"
-          element={
-            <GenericPlaceholderPage
-              title="Payments"
-              subtitle="Reconciled transaction records and payment gateway settlements"
-            />
-          }
-        />
+        <Route path="/invoices"    element={<InvoicesPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/payments"     element={<PaymentsPage />} />
         <Route
           path="/reports"
           element={
