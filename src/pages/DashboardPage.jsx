@@ -22,6 +22,7 @@ import OverdueTable from './dashboard/OverdueTable';
 
 import { getDashboard, getOverdueInvoices } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { FEATURES } from '../config/features';
 
 /**
  * =====================================================================
@@ -184,7 +185,7 @@ export default function DashboardPage() {
               label="Active Subscriptions"
               value={stats?.activeSubscriptions ?? 0}
               isLoading={isLoading}
-              onClick={() => navigate('/subscriptions?status=Active')}
+              onClick={FEATURES.subscriptionsAdmin ? () => navigate('/subscriptions?status=Active') : undefined}
             />
 
             <StatCard

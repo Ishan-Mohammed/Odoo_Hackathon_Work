@@ -7,6 +7,7 @@ import AdminOnlyRoute from './AdminOnlyRoute';
 // Layout Shells
 import AppShell from '../components/layout/AppShell';
 import PortalShell from '../components/layout/PortalShell';
+import { FEATURES } from '../config/features';
 
 // Public Auth Pages (Untouched)
 import LoginPage from '../pages/LoginPage';
@@ -101,18 +102,53 @@ export default function AppRoutes() {
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/plans" element={<PlansPage />} />
+
+        {/* Quotation Templates Route (Flagged) */}
         <Route
           path="/quotation-templates"
           element={
-            <GenericPlaceholderPage
-              title="Quotation Templates"
-              subtitle="Predefined quotation structures for rapid customer sales"
-            />
+            FEATURES.quotationTemplates ? (
+              <GenericPlaceholderPage
+                title="Quotation Templates"
+                subtitle="Predefined quotation structures for rapid customer sales"
+              />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           }
         />
-        <Route path="/subscriptions" element={<SubscriptionsPage />} />
-        <Route path="/subscriptions/new" element={<NewSubscriptionPage />} />
-        <Route path="/subscriptions/:id" element={<SubscriptionDetailPage />} />
+
+        {/* Subscriptions Routes (Flagged) */}
+        <Route
+          path="/subscriptions"
+          element={
+            FEATURES.subscriptionsAdmin ? (
+              <SubscriptionsPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/subscriptions/new"
+          element={
+            FEATURES.subscriptionsAdmin ? (
+              <NewSubscriptionPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/subscriptions/:id"
+          element={
+            FEATURES.subscriptionsAdmin ? (
+              <SubscriptionDetailPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
         <Route path="/payments" element={<PaymentsPage />} />

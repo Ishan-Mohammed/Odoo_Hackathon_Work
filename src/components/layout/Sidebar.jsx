@@ -21,6 +21,8 @@ import {
   X,
 } from 'lucide-react';
 
+import { FEATURES } from '../../config/features';
+
 export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }) {
   const { role } = useAuth();
 
@@ -38,8 +40,12 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }
     { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Products', path: '/products', icon: Package },
     { label: 'Plans', path: '/plans', icon: CalendarClock },
-    { label: 'Quotation Templates', path: '/quotation-templates', icon: FileText },
-    { label: 'Subscriptions', path: '/subscriptions', icon: Repeat },
+    ...(FEATURES.quotationTemplates
+      ? [{ label: 'Quotation Templates', path: '/quotation-templates', icon: FileText }]
+      : []),
+    ...(FEATURES.subscriptionsAdmin
+      ? [{ label: 'Subscriptions', path: '/subscriptions', icon: Repeat }]
+      : []),
     { label: 'Invoices', path: '/invoices', icon: Receipt },
     { label: 'Payments', path: '/payments', icon: CreditCard },
     { label: 'Reports', path: '/reports', icon: BarChart3 },

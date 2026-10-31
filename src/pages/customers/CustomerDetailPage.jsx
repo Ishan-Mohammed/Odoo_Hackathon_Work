@@ -22,13 +22,16 @@ import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
 import { getCustomer } from '../../api/client';
 import { formatDate } from '../../utils/format';
+import { FEATURES } from '../../config/features';
 
 export default function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [customer, setCustomer] = useState(null);
-  const [activeTab, setActiveTab] = useState('subscriptions'); // 'subscriptions' | 'invoices' | 'payments'
+  const [activeTab, setActiveTab] = useState(
+    FEATURES.subscriptionsAdmin ? 'subscriptions' : 'invoices'
+  ); // 'subscriptions' | 'invoices' | 'payments'
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -169,20 +172,22 @@ export default function CustomerDetailPage() {
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-soft-xs overflow-hidden">
         {/* Tab Headers */}
         <div className="flex items-center gap-2 border-b border-slate-200 px-6 pt-3 bg-slate-50/60">
-          <button
-            type="button"
-            onClick={() => setActiveTab('subscriptions')}
-            className={`pb-3 px-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'subscriptions'
-                ? 'border-brand-600 text-brand-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Subscriptions
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
-              {subscriptions.length}
-            </span>
-          </button>
+          {FEATURES.subscriptionsAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('subscriptions')}
+              className={`pb-3 px-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'subscriptions'
+                  ? 'border-brand-600 text-brand-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Subscriptions
+              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                {subscriptions.length}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -218,7 +223,7 @@ export default function CustomerDetailPage() {
         {/* Tab Content */}
         <div className="p-0">
           {/* Subscriptions Tab */}
-          {activeTab === 'subscriptions' && (
+          {FEATURES.subscriptionsAdmin && activeTab === 'subscriptions' && (
             subscriptions.length === 0 ? (
               <div className="py-12">
                 <EmptyState
@@ -245,10 +250,9 @@ export default function CustomerDetailPage() {
                     {subscriptions.map((sub) => (
                       <tr
                         key={sub.id}
-                        onClick={() => navigate(`/subscriptions/${sub.id}`)}
-                        className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
+                        className="hover:bg-slate-50/80 transition-colors group"
                       >
-                        <td className="px-6 py-3.5 font-mono font-medium text-slate-900 group-hover:text-brand-600">
+                        <td className="px-6 py-3.5 font-mono font-medium text-slate-900">
                           {sub.subscriptionNumber || sub.number || sub.id}
                         </td>
                         <td className="px-6 py-3.5 text-slate-700">
@@ -266,11 +270,7 @@ export default function CustomerDetailPage() {
                         <td className="px-6 py-3.5 text-slate-500 text-xs">
                           {formatDate(sub.nextBillingDate)}
                         </td>
-                        <td className="px-6 py-3.5 text-right">
-                          <span className="text-slate-400 group-hover:text-brand-600 transition-colors">
-                            <ExternalLink className="w-4 h-4 inline" />
-                          </span>
-                        </td>
+                        <td className="px-6 py-3.5 text-right"></td>
                       </tr>
                     ))}
                   </tbody>

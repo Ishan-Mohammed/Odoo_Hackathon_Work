@@ -79,7 +79,7 @@ export default function Topbar({ onToggleMobile = () => {} }) {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search subscriptions, invoices, customers..."
+              placeholder="Search invoices, customers, products..."
               className="w-full h-9 pl-9 pr-14 text-xs rounded-xl bg-slate-50 border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500 transition-all duration-150"
             />
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center">

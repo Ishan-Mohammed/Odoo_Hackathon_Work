@@ -12,6 +12,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import MoneyText from '../../components/ui/MoneyText';
 import { formatDate } from '../../utils/format';
+import { FEATURES } from '../../config/features';
 
 function Row({ label, value, className = '' }) {
   return (
@@ -110,12 +111,18 @@ export default function InvoiceDocument({ invoice }) {
               </span>
             </MetaItem>
             <MetaItem label="Subscription">
-              <Link
-                to={`/subscriptions/${subscriptionId}`}
-                className="text-brand-600 hover:underline font-mono text-sm"
-              >
-                {subscriptionNumber}
-              </Link>
+              {FEATURES.subscriptionsAdmin ? (
+                <Link
+                  to={`/subscriptions/${subscriptionId}`}
+                  className="text-brand-600 hover:underline font-mono text-sm"
+                >
+                  {subscriptionNumber}
+                </Link>
+              ) : (
+                <span className="font-mono text-sm text-slate-800">
+                  {subscriptionNumber}
+                </span>
+              )}
             </MetaItem>
             <MetaItem label="Status">
               <span className={`font-semibold ${
