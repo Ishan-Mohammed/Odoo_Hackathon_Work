@@ -5,3 +5,8 @@ server/node_modules
 server/.env
 .agents
 skills-lock.json
+
+server/.env
+server/node_modules
+.agents
+skills-lock.json
