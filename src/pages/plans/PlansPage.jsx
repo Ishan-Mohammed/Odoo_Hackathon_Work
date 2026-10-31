@@ -208,93 +208,99 @@ export default function PlansPage() {
     {
       key: 'name',
       label: 'Plan Name',
+      header: 'Plan Name',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <span className="font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">
-          {row.name}
+          {val || row?.name}
         </span>
       ),
     },
     {
       key: 'price',
       label: 'Recurring Price',
+      header: 'Recurring Price',
       align: 'right',
       sortable: true,
-      render: (row) => <MoneyText amount={row.price || 0} size="sm" right />,
+      render: (val, row) => <MoneyText amount={val ?? row?.price ?? 0} size="sm" right />,
     },
     {
       key: 'period',
       label: 'Period',
+      header: 'Period',
       align: 'center',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold uppercase bg-slate-100 text-slate-700 tracking-wide">
-          {row.period || row.billingPeriod || 'monthly'}
+          {val || row?.period || row?.billingPeriod || 'monthly'}
         </span>
       ),
     },
     {
       key: 'minQty',
       label: 'Min Qty',
+      header: 'Min Qty',
       align: 'center',
       sortable: true,
-      render: (row) => (
-        <span className="text-sm font-mono text-slate-700">{row.minQty || 1}</span>
+      render: (val, row) => (
+        <span className="text-sm font-mono text-slate-700">{val ?? row?.minQty ?? 1}</span>
       ),
     },
     {
       key: 'validity',
       label: 'Available From / To',
-      render: (row) => (
+      header: 'Available From / To',
+      render: (_, row) => (
         <div className="text-xs text-slate-500 font-mono">
-          <span>{row.validFrom || '—'}</span>
+          <span>{row?.validFrom || '—'}</span>
           <span className="mx-1.5 text-slate-300">→</span>
-          <span>{row.validTo || '—'}</span>
+          <span>{row?.validTo || '—'}</span>
         </div>
       ),
     },
     {
       key: 'toggles',
       label: 'Plan Behaviors',
-      render: (row) => (
+      header: 'Plan Behaviors',
+      render: (_, row) => (
         <div className="flex flex-wrap gap-1.5">
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
-              row.autoClose
+              row?.autoClose
                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                 : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
             }`}
-            title={row.autoClose ? 'Auto-close on expiration enabled' : 'Auto-close disabled'}
+            title={row?.autoClose ? 'Auto-close on expiration enabled' : 'Auto-close disabled'}
           >
             Auto-close
           </span>
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
-              row.closable !== false
+              row?.closable !== false
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
             }`}
-            title={row.closable !== false ? 'Customer can close' : 'Not closable'}
+            title={row?.closable !== false ? 'Customer can close' : 'Not closable'}
           >
             Closable
           </span>
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
-              row.pausable !== false
+              row?.pausable !== false
                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                 : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
             }`}
-            title={row.pausable !== false ? 'Pausable' : 'Cannot pause'}
+            title={row?.pausable !== false ? 'Pausable' : 'Cannot pause'}
           >
             Pausable
           </span>
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
-              row.renewable !== false
+              row?.renewable !== false
                 ? 'bg-purple-50 text-purple-700 border-purple-200'
                 : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
             }`}
-            title={row.renewable !== false ? 'Renewable' : 'Non-renewable'}
+            title={row?.renewable !== false ? 'Renewable' : 'Non-renewable'}
           >
             Renewable
           </span>
@@ -304,13 +310,14 @@ export default function PlansPage() {
     {
       key: 'actions',
       label: '',
+      header: '',
       align: 'right',
-      render: (row) =>
+      render: (_, row) =>
         isAdmin ? (
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              aria-label={`Edit plan ${row.name}`}
+              aria-label={`Edit plan ${row?.name || ''}`}
               onClick={() => openEditDrawer(row)}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               title="Edit Plan"
@@ -319,7 +326,7 @@ export default function PlansPage() {
             </button>
             <button
               type="button"
-              aria-label={`Delete plan ${row.name}`}
+              aria-label={`Delete plan ${row?.name || ''}`}
               onClick={() => setPlanToDelete(row)}
               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
               title="Delete Plan"

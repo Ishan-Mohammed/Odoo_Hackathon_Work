@@ -91,9 +91,9 @@ export default function CustomerDetailPage() {
     );
   }
 
-  const subscriptions = customer.subscriptions || [];
-  const invoices = customer.invoices || [];
-  const payments = customer.payments || [];
+  const subscriptions = customer?.subscriptions ?? [];
+  const invoices = customer?.invoices ?? [];
+  const payments = customer?.payments ?? [];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">

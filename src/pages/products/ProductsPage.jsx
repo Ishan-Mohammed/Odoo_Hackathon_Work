@@ -256,14 +256,15 @@ export default function ProductsPage() {
   const columns = [
     {
       key: 'name',
+      header: 'Product Name',
       label: 'Product Name',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <div className="flex flex-col">
           <span className="font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">
-            {row.name}
+            {val || row?.name || '—'}
           </span>
-          {row.notes && (
+          {row?.notes && (
             <span className="text-xs text-slate-500 line-clamp-1 mt-0.5">{row.notes}</span>
           )}
         </div>
@@ -271,35 +272,39 @@ export default function ProductsPage() {
     },
     {
       key: 'type',
+      header: 'Type',
       label: 'Type',
       sortable: true,
-      render: (row) => (
+      render: (val) => (
         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-          {row.type || 'Service'}
+          {val || 'Service'}
         </span>
       ),
     },
     {
       key: 'salesPrice',
+      header: 'Sales Price',
       label: 'Sales Price',
       align: 'right',
       sortable: true,
-      render: (row) => <MoneyText amount={row.salesPrice || 0} size="sm" right />,
+      render: (val) => <MoneyText amount={val ?? 0} size="sm" right />,
     },
     {
       key: 'costPrice',
+      header: 'Cost Price',
       label: 'Cost Price',
       align: 'right',
       sortable: true,
-      render: (row) => <MoneyText amount={row.costPrice || 0} size="sm" tone="muted" right />,
+      render: (val) => <MoneyText amount={val ?? 0} size="sm" tone="muted" right />,
     },
     {
       key: 'margin',
+      header: 'Margin %',
       label: 'Margin %',
       align: 'center',
-      render: (row) => {
-        const sp = parseFloat(row.salesPrice || 0);
-        const cp = parseFloat(row.costPrice || 0);
+      render: (_, row) => {
+        const sp = parseFloat(row?.salesPrice || 0);
+        const cp = parseFloat(row?.costPrice || 0);
         if (sp <= 0) return <span className="text-xs text-slate-400">—</span>;
         const margin = Math.round(((sp - cp) / sp) * 100);
         return (
@@ -319,16 +324,17 @@ export default function ProductsPage() {
     },
     {
       key: 'variantsCount',
+      header: 'Variants',
       label: 'Variants',
       align: 'center',
-      render: (row) => {
-        const count = row.variants?.length || 0;
+      render: (_, row) => {
+        const count = row?.variants?.length || 0;
         return (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              openVariantsDrawer(row);
+              if (row) openVariantsDrawer(row);
             }}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors"
           >
@@ -340,14 +346,15 @@ export default function ProductsPage() {
     },
     {
       key: 'actions',
+      header: '',
       label: '',
       align: 'right',
-      render: (row) => (
+      render: (_, row) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             aria-label="View variants"
-            onClick={() => openVariantsDrawer(row)}
+            onClick={() => row && openVariantsDrawer(row)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors"
             title="View Variants & Calculator"
           >
@@ -358,8 +365,8 @@ export default function ProductsPage() {
             <>
               <button
                 type="button"
-                aria-label={`Edit ${row.name}`}
-                onClick={() => openEditDrawer(row)}
+                aria-label={`Edit ${row?.name || 'product'}`}
+                onClick={() => row && openEditDrawer(row)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                 title="Edit Product"
               >
@@ -368,8 +375,8 @@ export default function ProductsPage() {
 
               <button
                 type="button"
-                aria-label={`Delete ${row.name}`}
-                onClick={() => setProductToDelete(row)}
+                aria-label={`Delete ${row?.name || 'product'}`}
+                onClick={() => row && setProductToDelete(row)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                 title="Delete Product"
               >

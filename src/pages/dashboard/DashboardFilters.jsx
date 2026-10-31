@@ -20,9 +20,13 @@ export default function DashboardFilters({ onFiltersChange }) {
 
   // Load customer options
   useEffect(() => {
-    listCustomers({ pageSize: 100 }).then((res) => {
-      setCustomers(res.data || []);
-    });
+    listCustomers({ pageSize: 100 })
+      .then((res) => {
+        setCustomers(res?.data || []);
+      })
+      .catch(() => {
+        setCustomers([]);
+      });
   }, []);
 
   // Sync to parent on filter change with 300ms debounce

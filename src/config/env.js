@@ -5,7 +5,7 @@
  * switches (VITE_REAL_MODULES) for incremental backend wiring.
  */
 
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.VITE_USE_MOCK !== 'false';
 export const USE_REAL_AUTH = import.meta.env.VITE_USE_REAL_AUTH === 'true';
 
 const realModulesSet = new Set(
@@ -17,35 +17,24 @@ const realModulesSet = new Set(
 
 /**
  * Returns true if a specific module should call the real backend.
- * - If VITE_USE_MOCK === 'false': all modules default to real unless VITE_REAL_MODULES is specified as an allowlist.
- * - If VITE_USE_REAL_AUTH is true: auth is real even in mock mode.
- * - Supports wildcard 'all' or '*' in VITE_REAL_MODULES.
+ * - When VITE_USE_MOCK=true (or USE_MOCK is true): MOCK ALWAYS WINS (returns false).
+ * - When VITE_USE_MOCK=false: routes to real backend if allowlisted or wildcard.
  */
 export function isReal(moduleName) {
+  // If global mock is enabled, force mock mode everywhere (mock wins)
+  if (USE_MOCK) return false;
+
   const mod = (moduleName || '').toLowerCase();
-
-  // Special-case: auth override flag
-  if (mod === 'auth' && USE_REAL_AUTH) return true;
-
-  // If global mock is enabled, everything is mock unless explicitly flagged
-  if (USE_MOCK) {
-    if (realModulesSet.has('all') || realModulesSet.has('*')) return true;
-    return realModulesSet.has(mod);
-  }
-
-  // If global mock is disabled (VITE_USE_MOCK=false):
-  // If no specific module list is given, everything is real
   if (realModulesSet.size === 0 || realModulesSet.has('all') || realModulesSet.has('*')) {
     return true;
   }
-
-  // If a list was provided, only modules in that list are real
   return realModulesSet.has(mod);
 }
 
 /**
  * Returns true if write operations (POST/PATCH/DELETE) for a catalog module are real.
  * Controlled by module-name-write (e.g. products-write, plans-write, taxes-write, discounts-write, templates-write).
+ * When USE_MOCK is true, always returns false.
  */
 export function isRealWrite(moduleName) {
   if (USE_MOCK) return false;

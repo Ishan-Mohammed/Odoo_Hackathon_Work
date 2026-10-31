@@ -57,14 +57,15 @@ export default function CustomersPage() {
   const columns = [
     {
       key: 'name',
+      header: 'Customer',
       label: 'Customer',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <div className="flex flex-col">
           <span className="font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">
-            {row.name}
+            {val || row?.name || '—'}
           </span>
-          {row.city && (
+          {row?.city && (
             <span className="text-xs text-slate-400 mt-0.5">{row.city}</span>
           )}
         </div>
@@ -72,45 +73,52 @@ export default function CustomersPage() {
     },
     {
       key: 'email',
+      header: 'Email',
       label: 'Email',
       sortable: true,
-      render: (row) => (
-        <span className="text-slate-600 text-sm font-mono">{row.email}</span>
+      render: (val) => (
+        <span className="text-slate-600 text-sm font-mono">{val || '—'}</span>
       ),
     },
     {
       key: 'activeSubscriptions',
+      header: 'Active Subs',
       label: 'Active Subs',
       align: 'center',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          {row.activeSubscriptions ?? 0} active
+          {val ?? row?.activeSubscriptions ?? 0} active
         </span>
       ),
     },
     {
       key: 'outstanding',
+      header: 'Outstanding',
       label: 'Outstanding',
       align: 'right',
       sortable: true,
-      render: (row) => (
-        <MoneyText
-          amount={row.outstanding || 0}
-          size="sm"
-          tone={row.outstanding > 0 ? 'negative' : 'muted'}
-          right
-        />
-      ),
+      render: (val, row) => {
+        const amt = val ?? row?.outstanding ?? 0;
+        return (
+          <MoneyText
+            amount={amt}
+            size="sm"
+            tone={amt > 0 ? 'negative' : 'muted'}
+            right
+          />
+        );
+      },
     },
     {
       key: 'totalPaid',
+      header: 'Total Paid',
       label: 'Total Paid',
       align: 'right',
       sortable: true,
-      render: (row) => (
+      render: (val, row) => (
         <MoneyText
-          amount={row.totalPaid || 0}
+          amount={val ?? row?.totalPaid ?? 0}
           size="sm"
           tone="positive"
           right
@@ -119,15 +127,16 @@ export default function CustomersPage() {
     },
     {
       key: 'actions',
+      header: '',
       label: '',
       align: 'right',
-      render: (row) => (
+      render: (_, row) => (
         <button
           type="button"
-          aria-label={`View details for ${row.name}`}
+          aria-label={`View details for ${row?.name || 'customer'}`}
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/customers/${row.id}`);
+            if (row?.id) navigate(`/customers/${row.id}`);
           }}
           className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors"
         >

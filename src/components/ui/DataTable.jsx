@@ -33,8 +33,9 @@ export default function DataTable({
   };
 
   const sortedData = useMemo(() => {
-    if (!sortConfig.key) return data;
-    return [...data].sort((a, b) => {
+    const list = Array.isArray(data) ? data : [];
+    if (!sortConfig.key) return list;
+    return [...list].sort((a, b) => {
       const aVal = a[sortConfig.key];
       const bVal = b[sortConfig.key];
       if (aVal === bVal) return 0;
@@ -90,7 +91,7 @@ export default function DataTable({
                         col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'
                       }`}
                     >
-                      <span>{col.header}</span>
+                      <span>{col.header || col.label}</span>
                       {col.sortable && (
                         <span className="text-slate-400">
                           {isSorted ? (
