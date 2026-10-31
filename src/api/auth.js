@@ -1,5 +1,6 @@
 import api from './axios';
 import { DEMO_PASSWORD } from '../config/demoCredentials';
+import { USE_MOCK } from '../config/env';
 
 /**
  * =====================================================================
@@ -22,8 +23,6 @@ import { DEMO_PASSWORD } from '../config/demoCredentials';
  *    Response: { success: boolean, message: string }
  * =====================================================================
  */
-
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
 // Helper for simulating realistic network latency
 const sleep = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));

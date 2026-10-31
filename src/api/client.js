@@ -7,6 +7,7 @@ import {
   mockPayments,
   mock12MonthRevenue,
 } from './mock/db';
+import { USE_MOCK } from '../config/env';
 
 /**
  * =====================================================================
@@ -63,7 +64,6 @@ import {
  * =====================================================================
  */
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 const sleep = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Session cache for reminders sent during this session
