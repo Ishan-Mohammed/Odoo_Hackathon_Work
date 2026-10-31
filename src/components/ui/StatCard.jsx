@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import Skeleton from './Skeleton';
+import MoneyText from './MoneyText';
 import { formatMoney } from '../../utils/format';
 
 export default function StatCard({
