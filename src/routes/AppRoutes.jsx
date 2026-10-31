@@ -18,12 +18,25 @@ import ResetPasswordPage from '../pages/ResetPasswordPage';
 import DashboardPage from '../pages/DashboardPage';
 import GenericPlaceholderPage from '../pages/GenericPlaceholderPage';
 import DevComponentsPage from '../pages/DevComponentsPage';
+import ApiCheckPage from '../pages/dev/ApiCheckPage';
 import NotFound from '../pages/NotFound';
 
 // Invoices & Payments (live pages)
 import InvoicesPage from '../pages/invoices/InvoicesPage';
 import InvoiceDetailPage from '../pages/invoices/InvoiceDetailPage';
 import PaymentsPage from '../pages/payments/PaymentsPage';
+
+// Subscriptions
+import SubscriptionsPage from '../pages/subscriptions/SubscriptionsPage';
+import NewSubscriptionPage from '../pages/subscriptions/NewSubscriptionPage';
+import SubscriptionDetailPage from '../pages/subscriptions/SubscriptionDetailPage';
+
+// Customers, Products, Plans, Reports
+import CustomersPage from '../pages/customers/CustomersPage';
+import CustomerDetailPage from '../pages/customers/CustomerDetailPage';
+import ProductsPage from '../pages/products/ProductsPage';
+import PlansPage from '../pages/plans/PlansPage';
+import ReportsPage from '../pages/reports/ReportsPage';
 
 export default function AppRoutes() {
   return (
@@ -78,43 +91,10 @@ export default function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route
-          path="/customers"
-          element={
-            <GenericPlaceholderPage
-              title="Customers"
-              subtitle="Manage accounts, contact details, and customer billing profiles"
-            />
-          }
-        />
-        <Route
-          path="/customers/:id"
-          element={
-            <GenericPlaceholderPage
-              title="Customer Details"
-              subtitle="Customer profile, subscription history, and payment methods"
-              breadcrumb={[{ label: 'Customers', href: '/customers' }, { label: 'Details' }]}
-            />
-          }
-        />
-        <Route
-          path="/products"
-          element={
-            <GenericPlaceholderPage
-              title="Products"
-              subtitle="Product catalog, recurring services, and add-on variants"
-            />
-          }
-        />
-        <Route
-          path="/plans"
-          element={
-            <GenericPlaceholderPage
-              title="Plans"
-              subtitle="Recurring billing frequencies, pricing tiers, and terms"
-            />
-          }
-        />
+        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/plans" element={<PlansPage />} />
         <Route
           path="/quotation-templates"
           element={
@@ -124,47 +104,13 @@ export default function AppRoutes() {
             />
           }
         />
-        <Route
-          path="/subscriptions"
-          element={
-            <GenericPlaceholderPage
-              title="Subscriptions"
-              subtitle="Manage active, paused, confirmed, and draft subscriptions"
-            />
-          }
-        />
-        <Route
-          path="/subscriptions/new"
-          element={
-            <GenericPlaceholderPage
-              title="New Subscription"
-              subtitle="Configure recurring order, select customer, and apply discounts"
-              breadcrumb={[{ label: 'Subscriptions', href: '/subscriptions' }, { label: 'New' }]}
-            />
-          }
-        />
-        <Route
-          path="/subscriptions/:id"
-          element={
-            <GenericPlaceholderPage
-              title="Subscription Details"
-              subtitle="Subscription status, prorations, renewals, and actions"
-              breadcrumb={[{ label: 'Subscriptions', href: '/subscriptions' }, { label: 'Details' }]}
-            />
-          }
-        />
-        <Route path="/invoices"    element={<InvoicesPage />} />
+        <Route path="/subscriptions" element={<SubscriptionsPage />} />
+        <Route path="/subscriptions/new" element={<NewSubscriptionPage />} />
+        <Route path="/subscriptions/:id" element={<SubscriptionDetailPage />} />
+        <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-        <Route path="/payments"     element={<PaymentsPage />} />
-        <Route
-          path="/reports"
-          element={
-            <GenericPlaceholderPage
-              title="Reports"
-              subtitle="MRR trends, churn analytics, and overdue collection reports"
-            />
-          }
-        />
+        <Route path="/payments" element={<PaymentsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
 
         {/* Admin-only Routes (Redirects Staff to /dashboard with toast) */}
         <Route
@@ -212,8 +158,9 @@ export default function AppRoutes() {
           }
         />
 
-        {/* Hidden Dev Components Showcase */}
+        {/* Hidden Dev Showcases & API Diagnostics */}
         <Route path="/dev/components" element={<DevComponentsPage />} />
+        <Route path="/dev/api-check" element={<ApiCheckPage />} />
       </Route>
 
       {/* ========================================================= */}

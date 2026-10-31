@@ -64,9 +64,184 @@ export const mockCustomers = [
 // PLANS (used by subscriptions)
 // ─────────────────────────────────────────────
 export const mockPlans = [
-  { id: 'pln_monthly', name: 'CRM Monthly',   billingPeriod: 'monthly',  periodDays: 30 },
-  { id: 'pln_quarterly', name: 'CRM Quarterly', billingPeriod: 'quarterly', periodDays: 90 },
+  {
+    id: 'pln_monthly',
+    name: 'CRM Monthly',
+    price: 2560.0,
+    period: 'monthly',
+    billingPeriod: 'monthly',
+    periodDays: 30,
+    minQty: 1,
+    validFrom: '2025-01-01',
+    validTo: '2027-12-31',
+    autoClose: false,
+    closable: true,
+    pausable: true,
+    renewable: true,
+  },
+  {
+    id: 'pln_quarterly',
+    name: 'CRM Quarterly',
+    price: 7200.0,
+    period: 'quarterly',
+    billingPeriod: 'quarterly',
+    periodDays: 90,
+    minQty: 1,
+    validFrom: '2025-01-01',
+    validTo: '2027-12-31',
+    autoClose: false,
+    closable: true,
+    pausable: true,
+    renewable: true,
+  },
+  {
+    id: 'pln_yearly',
+    name: 'Enterprise Yearly',
+    price: 28000.0,
+    period: 'yearly',
+    billingPeriod: 'yearly',
+    periodDays: 365,
+    minQty: 5,
+    validFrom: '2025-01-01',
+    validTo: '2027-12-31',
+    autoClose: true,
+    closable: true,
+    pausable: false,
+    renewable: true,
+  },
 ];
+
+// ─────────────────────────────────────────────
+// PRODUCTS & VARIANTS
+// ─────────────────────────────────────────────
+export const mockProducts = [
+  {
+    id: 'prd_crm',
+    name: 'Brightloop CRM',
+    type: 'Service',
+    salesPrice: 2000.0,
+    costPrice: 800.0,
+    notes: 'Primary CRM software subscription with sales pipeline & quotation management',
+    variants: [
+      { id: 'var_odoo', attribute: 'Brand', value: 'Odoo', extraPrice: 560.0, unitPrice: 2560.0 },
+      { id: 'var_std',  attribute: 'Edition', value: 'Standard', extraPrice: 0.0, unitPrice: 2000.0 },
+      { id: 'var_ent',  attribute: 'Edition', value: 'Enterprise', extraPrice: 1200.0, unitPrice: 3200.0 },
+    ],
+  },
+  {
+    id: 'prd_helpdesk',
+    name: 'Brightloop Helpdesk',
+    type: 'Service',
+    salesPrice: 1500.0,
+    costPrice: 500.0,
+    notes: 'Multi-channel customer ticketing, SLA management, and live chat assistance',
+    variants: [
+      { id: 'var_hd_247', attribute: 'SLA', value: '24/7 Dedicated', extraPrice: 600.0, unitPrice: 2100.0 },
+      { id: 'var_hd_std', attribute: 'SLA', value: 'Standard (8x5)', extraPrice: 0.0, unitPrice: 1500.0 },
+    ],
+  },
+  {
+    id: 'prd_analytics',
+    name: 'Brightloop Analytics & BI',
+    type: 'Service',
+    salesPrice: 3500.0,
+    costPrice: 1200.0,
+    notes: 'Automated executive reporting, forecasting, and cross-module dashboards',
+    variants: [],
+  },
+];
+
+// ─────────────────────────────────────────────
+// DISCOUNTS (coupons & volume rules)
+// ─────────────────────────────────────────────
+export const mockDiscounts = [
+  {
+    id: 'disc_bulk10',
+    code: 'BULK10',
+    type: 'percentage',
+    value: 10,
+    minQty: 5,
+    minPurchase: 0,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    appliesTo: 'all',
+    usageLimit: 500,
+    usedCount: 42,
+    active: true,
+  },
+  {
+    id: 'disc_startup15',
+    code: 'STARTUP15',
+    type: 'percentage',
+    value: 15,
+    minQty: 1,
+    minPurchase: 10000,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    appliesTo: 'all',
+    usageLimit: 100,
+    usedCount: 18,
+    active: true,
+  },
+  {
+    id: 'disc_flat500',
+    code: 'FLAT500',
+    type: 'fixed',
+    value: 500,
+    minQty: 1,
+    minPurchase: 3000,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    appliesTo: 'all',
+    usageLimit: 200,
+    usedCount: 65,
+    active: true,
+  },
+];
+
+// ─────────────────────────────────────────────
+// TAXES
+// ─────────────────────────────────────────────
+export const mockTaxes = [
+  { id: 'tax_gst18', name: 'GST 18%', rate: 18.0, appliesTo: 'all' },
+  { id: 'tax_gst12', name: 'GST 12%', rate: 12.0, appliesTo: 'all' },
+  { id: 'tax_gst5',  name: 'GST 5%',  rate: 5.0,  appliesTo: 'all' },
+  { id: 'tax_exempt', name: 'Exempt 0%', rate: 0.0, appliesTo: 'all' },
+];
+
+/** Compute valid actions for a subscription based on status and plan toggles */
+export function computeAllowedActions(status, plan = {}) {
+  const pausable = plan.pausable !== false;
+  const closable = plan.closable !== false;
+  const renewable = plan.renewable !== false;
+
+  const actions = [];
+  switch (status) {
+    case 'Draft':
+      actions.push('quote', 'cancel');
+      break;
+    case 'Quotation':
+      actions.push('confirm', 'cancel');
+      break;
+    case 'Confirmed':
+      actions.push('activate', 'cancel');
+      break;
+    case 'Active':
+      if (pausable) actions.push('pause');
+      if (closable) actions.push('close');
+      break;
+    case 'Paused':
+      actions.push('resume');
+      if (closable) actions.push('close');
+      break;
+    case 'Closed':
+      if (renewable) actions.push('renew');
+      break;
+    default:
+      break;
+  }
+  return actions;
+}
 
 // ─────────────────────────────────────────────
 // SUBSCRIPTIONS
