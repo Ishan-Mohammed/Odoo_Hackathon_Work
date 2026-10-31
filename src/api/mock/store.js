@@ -77,26 +77,26 @@ export function createInitialSeed() {
   const initialUsers = [
     {
       id: 'usr_admin_01',
-      name: 'Sarah Connor (Admin)',
+      name: 'Admin',
       email: 'admin@brightloop.com',
-      password: DEMO_PASSWORD,
+      password: 'Admin@1234',
       role: 'admin',
       created_at: '2026-01-01T00:00:00Z',
     },
     {
       id: 'usr_staff_02',
-      name: 'David Miller (Ops)',
+      name: 'Staff',
       email: 'staff@brightloop.com',
-      password: DEMO_PASSWORD,
+      password: 'Staff@1234',
       role: 'staff',
       created_at: '2026-01-15T09:00:00Z',
     },
     {
       id: 'usr_cust_01',
       customerId: 'cust_01',
-      name: 'Acme Traders (Customer)',
+      name: 'Acme Traders',
       email: 'customer@acme.com',
-      password: DEMO_PASSWORD,
+      password: 'Customer@1234',
       role: 'customer',
       created_at: '2026-02-01T10:00:00Z',
     },
@@ -125,6 +125,15 @@ export function getStore() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.schemaVersion === SCHEMA_VERSION) {
+          const adminUser = (parsed.users || []).find(
+            (u) => String(u.email || '').toLowerCase() === 'admin@brightloop.com'
+          );
+          if (!adminUser || adminUser.password !== 'Admin@1234') {
+            const reseeded = createInitialSeed();
+            saveStore(reseeded);
+            memoryStore = reseeded;
+            return reseeded;
+          }
           memoryStore = parsed;
           return parsed;
         }

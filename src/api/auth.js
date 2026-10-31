@@ -38,33 +38,49 @@ const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\
 
 export async function login({ email, password }) {
   if (!isReal('auth')) {
-    await sleep(350);
+    await sleep(250);
     const normalizedEmail = (email || '').trim().toLowerCase();
+    const cleanPassword = password || '';
     const store = getStore();
 
-    const isDemoPass = password === DEMO_PASSWORD || password === 'password123';
-
-    // Find user in store by email
-    const matched = (store.users || []).find(
-      (u) => String(u.email || '').toLowerCase() === normalizedEmail
+    // 1. Find user in store by email
+    let matched = (store.users || []).find(
+      (u) => String(u.email || '').trim().toLowerCase() === normalizedEmail
     );
 
-    if (matched && (matched.password === password || (isDemoPass && (matched.email === 'admin@brightloop.com' || matched.email === 'staff@brightloop.com' || matched.email === 'customer@acme.com')))) {
+    // 2. Also check brightloop_mock_users for any saved users
+    if (!matched) {
+      try {
+        const rawSaved = localStorage.getItem('brightloop_mock_users');
+        if (rawSaved) {
+          const savedList = JSON.parse(rawSaved);
+          if (Array.isArray(savedList)) {
+            matched = savedList.find(
+              (u) => String(u.email || '').trim().toLowerCase() === normalizedEmail
+            );
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (matched && matched.password === cleanPassword) {
       const userPayload = {
-        id: String(matched.id),
-        name: matched.name,
+        id: String(matched.id || `usr_${Date.now()}`),
+        name: matched.name || 'User',
         email: matched.email,
-        role: matched.role,
+        role: matched.role || 'customer',
         customerId: matched.customerId ? String(matched.customerId) : undefined,
       };
 
       return {
-        token: `mock-jwt-token-${matched.role}-${Date.now()}`,
+        token: `mock-jwt-token-${userPayload.role}-${Date.now()}`,
         user: userPayload,
       };
     }
 
-    throw createError('UNAUTHORIZED', 'Invalid email or password.');
+    throw createError('UNAUTHORIZED', 'Invalid email or password');
   }
 
   // Real backend authentication
@@ -86,12 +102,12 @@ export async function login({ email, password }) {
 
     // Wrong credentials
     if (err.status === 401 || err.response?.status === 401) {
-      const authErr = new Error('Invalid email or password.');
+      const authErr = new Error('Invalid email or password');
       authErr.code = 'UNAUTHORIZED';
       authErr.status = 401;
       authErr.response = {
         status: 401,
-        data: { message: 'Invalid email or password.' },
+        data: { message: 'Invalid email or password' },
       };
       throw authErr;
     }
@@ -118,11 +134,26 @@ export async function signup({ name, email, password }) {
       throw createError('VALIDATION', 'Password does not satisfy all security requirements.');
     }
 
-    // 2. Validate email uniqueness against store users
+    // 2. Validate email uniqueness against store users (admin, staff, customer) and brightloop_mock_users
     const store = getStore();
-    const isAlreadySaved = (store.users || []).some(
-      (u) => String(u.email || '').toLowerCase() === normalizedEmail
+    let isAlreadySaved = (store.users || []).some(
+      (u) => String(u.email || '').trim().toLowerCase() === normalizedEmail
     );
+    if (!isAlreadySaved) {
+      try {
+        const rawSaved = localStorage.getItem('brightloop_mock_users');
+        if (rawSaved) {
+          const savedList = JSON.parse(rawSaved);
+          if (Array.isArray(savedList)) {
+            isAlreadySaved = savedList.some(
+              (u) => String(u.email || '').trim().toLowerCase() === normalizedEmail
+            );
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     if (isAlreadySaved) {
       throw createError('DUPLICATE_EMAIL', 'An account with this email address already exists.');
@@ -141,6 +172,7 @@ export async function signup({ name, email, password }) {
       outstanding: 0,
       totalPaid: 0,
       totalSpend: 0,
+      createdAt: new Date().toISOString(),
     };
     store.customers = store.customers || [];
     store.customers.unshift(newCustomer);
@@ -157,6 +189,15 @@ export async function signup({ name, email, password }) {
     store.users = store.users || [];
     store.users.push(newUser);
     saveStore(store);
+
+    try {
+      const rawUsers = localStorage.getItem('brightloop_mock_users');
+      const usersList = rawUsers ? JSON.parse(rawUsers) : [];
+      usersList.push(newUser);
+      localStorage.setItem('brightloop_mock_users', JSON.stringify(usersList));
+    } catch {
+      // ignore
+    }
 
     return {
       token: `mock-jwt-token-customer-${Date.now()}`,

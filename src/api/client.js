@@ -1335,7 +1335,7 @@ export async function addStaff(payload) {
       name,
       email,
       role: 'staff',
-      password: 'Demo@Brightloop2025!',
+      password: payload?.password || 'Staff@1234',
       created_at: new Date().toISOString(),
     };
 

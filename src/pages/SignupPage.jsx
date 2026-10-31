@@ -69,14 +69,19 @@ export default function SignupPage() {
         replace: true,
       });
     } catch (err) {
-      if (err.response?.status === 409 || err.message?.includes('already registered')) {
+      if (
+        err.response?.status === 409 ||
+        err.code === 'DUPLICATE_EMAIL' ||
+        err.response?.data?.code === 'DUPLICATE_EMAIL' ||
+        err.message?.toLowerCase().includes('already')
+      ) {
         const message =
-          err.response?.data?.message || 'An account with this email address already exists.';
+          err.response?.data?.message || err.message || 'An account with this email address already exists.';
         setErrors((prev) => ({ ...prev, email: message }));
         toast.error(message);
       } else {
         const fallbackMsg =
-          err.response?.data?.message || 'Failed to create account. Please try again.';
+          err.response?.data?.message || err.message || 'Failed to create account. Please try again.';
         toast.error(fallbackMsg);
       }
     } finally {

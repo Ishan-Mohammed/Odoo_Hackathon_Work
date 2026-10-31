@@ -6,7 +6,6 @@ import AuthLayout from '../components/layout/AuthLayout';
 import Input from '../components/ui/Input';
 import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
-import DemoCredentialChips from '../components/ui/DemoCredentialChips';
 import { useAuth } from '../context/AuthContext';
 import { useIntro } from '../components/auth/IntroContext';
 
@@ -18,20 +17,13 @@ export default function LoginPage() {
 
   const emailInputRef = useRef(null);
 
-  // Form State
+  // Form State: clean initial state without prefilled placeholder credentials
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [bannerError, setBannerError] = useState('');
-
-  // Handle pre-filled email from signup redirect or query params
-  useEffect(() => {
-    if (location.state?.registeredEmail) {
-      setEmail(location.state.registeredEmail);
-    }
-  }, [location.state]);
 
   // Autofocus the email field on initial mount once intro finishes
   useEffect(() => {
@@ -58,34 +50,55 @@ export default function LoginPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLoginSubmit = async (customCreds = null) => {
-    const loginEmail = customCreds ? customCreds.email : email;
-    const loginPass = customCreds ? customCreds.password : password;
-
-    if (!customCreds && !validate()) return;
+  const handleLoginSubmit = async () => {
+    if (!validate()) return;
 
     setIsLoading(true);
     setBannerError('');
 
     try {
-      const data = await login({ email: loginEmail, password: loginPass });
+      const data = await login({ email: email.trim(), password });
       toast.success(`Welcome back, ${data.user?.name || 'User'}!`);
 
       // Trigger ~320ms exit animation before redirecting
       setIsLeaving(true);
       await new Promise((resolve) => setTimeout(resolve, 320));
 
+      const userRole = data.user?.role || 'customer';
+      const defaultHome = userRole === 'customer' ? '/portal' : '/dashboard';
+
+      // Check whether previous location is permitted for this role
       const returnUrl = location.state?.from?.pathname;
+      let targetUrl = defaultHome;
+
       if (returnUrl) {
-        navigate(returnUrl, { replace: true });
-      } else if (data.user?.role === 'customer') {
-        navigate('/portal', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
+        const cleanPath = returnUrl.toLowerCase();
+        if (userRole === 'customer') {
+          // Customers are strictly isolated to customer portal routes
+          if (cleanPath.startsWith('/portal')) {
+            targetUrl = returnUrl;
+          }
+        } else if (userRole === 'staff') {
+          // Staff cannot access customer portal or admin-only config
+          const adminOnlyRoutes = ['/staff', '/discounts', '/taxes', '/settings'];
+          const isForbidden =
+            cleanPath.startsWith('/portal') ||
+            adminOnlyRoutes.some((r) => cleanPath.startsWith(r));
+          if (!isForbidden) {
+            targetUrl = returnUrl;
+          }
+        } else if (userRole === 'admin') {
+          // Admin cannot land on customer portal
+          if (!cleanPath.startsWith('/portal')) {
+            targetUrl = returnUrl;
+          }
+        }
       }
+
+      navigate(targetUrl, { replace: true });
     } catch (err) {
       const message =
-        err.response?.data?.message || 'Invalid email or password. Please check your credentials.';
+        err.response?.data?.message || err.message || 'Invalid email or password';
       setBannerError(message);
       toast.error(message);
       setIsLoading(false);
@@ -97,32 +110,14 @@ export default function LoginPage() {
     handleLoginSubmit();
   };
 
-  const handleSelectDemo = (creds) => {
-    setEmail(creds.email);
-    setPassword(creds.password);
-    setErrors({});
-    setBannerError('');
-    handleLoginSubmit(creds);
-  };
-
   return (
     <AuthLayout
       title="Welcome back"
       subtitle="Sign in to manage your subscriptions and billing"
       isLeaving={isLeaving}
-      footerLink={
-        <p>
-          New to Brightloop?{' '}
-          <Link
-            to="/signup"
-            className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
-          >
-            Create an account
-          </Link>
-        </p>
-      }
+      footerLink={null}
     >
-      {/* Friendly Error Banner */}
+      {/* Friendly Error Banner with shake animation and ARIA announcement */}
       {bannerError && (
         <div
           role="alert"
@@ -156,7 +151,7 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Password Input with top-row Forgot Password link */}
+        {/* Password Input with show/hide and top-row Forgot Password link */}
         <PasswordInput
           label="Password"
           placeholder="••••••••••••"
@@ -168,7 +163,7 @@ export default function LoginPage() {
           labelRightSlot={
             <Link
               to="/forgot-password"
-              className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+              className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors text-xs"
             >
               Forgot password?
             </Link>
@@ -179,7 +174,7 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Primary Submit Button */}
+        {/* Full-width Sign in Button */}
         <div className="pt-1">
           <Button
             type="submit"
@@ -196,19 +191,28 @@ export default function LoginPage() {
       </form>
 
       {/* Divider */}
-      <div className="relative my-4">
+      <div className="relative my-5">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-slate-200/90" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-slate-50 px-3 text-slate-400 font-medium">
-            or try a demo account
+          <span className="bg-slate-50 px-3 text-slate-400 font-medium select-none">
+            New to Brightloop?
           </span>
         </div>
       </div>
 
-      {/* Demo Credential Chips */}
-      <DemoCredentialChips onSelect={handleSelectDemo} disabled={isLoading || isLeaving} />
+      {/* Full-width secondary (outline) button "Create an account" */}
+      <Button
+        type="button"
+        variant="secondary"
+        size="lg"
+        fullWidth
+        disabled={isLoading || isLeaving}
+        onClick={() => navigate('/signup')}
+      >
+        Create an account
+      </Button>
     </AuthLayout>
   );
 }

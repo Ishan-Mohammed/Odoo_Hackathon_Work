@@ -62,7 +62,7 @@ export default function SmokeTestPage() {
       // Step 1: Login as admin, add staff "Test Staff", add product variant, edit BULK10
       // ─────────────────────────────────────────────────────────────
       try {
-        const adminAuth = await login({ email: 'admin@brightloop.com', password: DEMO_PASSWORD });
+        const adminAuth = await login({ email: 'admin@brightloop.com', password: 'Admin@1234' });
         setSession(adminAuth.token, adminAuth.user);
 
         const staffRes = await addStaff({ name: 'Test Staff', email: 'teststaff@brightloop.com' });
@@ -87,7 +87,7 @@ export default function SmokeTestPage() {
       // Step 2: Login as the new staff, confirm writes to products are rejected with FORBIDDEN
       // ─────────────────────────────────────────────────────────────
       try {
-        const staffAuth = await login({ email: 'teststaff@brightloop.com', password: DEMO_PASSWORD });
+        const staffAuth = await login({ email: 'teststaff@brightloop.com', password: 'Staff@1234' });
         setSession(staffAuth.token, staffAuth.user);
 
         let rejectedWithForbidden = false;
@@ -170,7 +170,7 @@ export default function SmokeTestPage() {
       // ─────────────────────────────────────────────────────────────
       let unpaidInvoice = null;
       try {
-        const custAuth = await login({ email: 'customer@acme.com', password: DEMO_PASSWORD });
+        const custAuth = await login({ email: 'customer@acme.com', password: 'Customer@1234' });
         setSession(custAuth.token, custAuth.user);
 
         const summary = await getMyPortalSummary();
@@ -226,7 +226,7 @@ export default function SmokeTestPage() {
       // Step 7: Staff records payment bigger than outstanding: OVERPAYMENT; records exact: Paid, owe drops
       // ─────────────────────────────────────────────────────────────
       try {
-        const staffAuth = await login({ email: 'staff@brightloop.com', password: DEMO_PASSWORD });
+        const staffAuth = await login({ email: 'staff@brightloop.com', password: 'Staff@1234' });
         setSession(staffAuth.token, staffAuth.user);
 
         if (!unpaidInvoice) {
@@ -262,7 +262,7 @@ export default function SmokeTestPage() {
         const invoiceIsPaid = payRes?.invoice?.status === 'Paid' || payRes?.invoice?.outstanding === 0;
 
         // Check owe dropped on customer side
-        const custAuth = await login({ email: 'customer@acme.com', password: DEMO_PASSWORD });
+        const custAuth = await login({ email: 'customer@acme.com', password: 'Customer@1234' });
         setSession(custAuth.token, custAuth.user);
         const newSummary = await getMyPortalSummary();
         const newOwed = newSummary?.amountOwed ?? newSummary?.outstandingTotal ?? 0;
@@ -283,7 +283,7 @@ export default function SmokeTestPage() {
       // Step 8: Customer tries an admin function: FORBIDDEN
       // ─────────────────────────────────────────────────────────────
       try {
-        const custAuth = await login({ email: 'customer@acme.com', password: DEMO_PASSWORD });
+        const custAuth = await login({ email: 'customer@acme.com', password: 'Customer@1234' });
         setSession(custAuth.token, custAuth.user);
 
         let rejectedWithForbidden = false;
@@ -315,11 +315,11 @@ export default function SmokeTestPage() {
         const signupRes = await signup({
           name: 'Quantum Logic Systems',
           email: uniqueEmail,
-          password: DEMO_PASSWORD,
+          password: 'Customer@1234',
         });
 
         // Check in admin Customers list
-        const adminAuth = await login({ email: 'admin@brightloop.com', password: DEMO_PASSWORD });
+        const adminAuth = await login({ email: 'admin@brightloop.com', password: 'Admin@1234' });
         setSession(adminAuth.token, adminAuth.user);
         const customersRes = await listCustomers({ search: 'Quantum Logic' });
         const existsInAdmin = (customersRes?.data || []).some((c) => c.email === uniqueEmail);
