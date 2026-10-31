@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const catalogController = require('../controllers/catalogController');
+const { verifyToken, requireRole } = require('../middleware/auth');
+
+router.use(verifyToken, requireRole('admin', 'staff'));
+
+router.get('/', catalogController.listPlans);
+
+module.exports = router;
