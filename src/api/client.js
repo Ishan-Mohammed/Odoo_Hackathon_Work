@@ -1,20 +1,17 @@
 import api from './axios';
 import {
-  mockWorkedExample,
-  mockCustomers,
-  mockSubscriptions,
-  mockInvoices,
-  mockPayments,
-  mock12MonthRevenue,
-  mockProducts,
-  mockPlans,
-  mockDiscounts,
-  mockTaxes,
-  computeAllowedActions,
-  computeStatus,
-  computeDaysOverdue,
-  nextInvoiceNumber,
-} from './mock/db';
+  getStore,
+  saveStore,
+  today,
+  roundMoney,
+  createError,
+  computeInvoiceStatus,
+  computeInvoiceDaysOverdue,
+  nextNumber,
+  requireRole,
+  getSessionUser,
+} from './mock/store';
+import { computeAllowedActions } from './mock/db';
 import { isReal, isRealWrite } from '../config/env';
 import {
   adaptError,
@@ -27,80 +24,13 @@ import {
   adaptPayment,
 } from './adapters';
 
-/**
- * =====================================================================
- * API CLIENT CONTRACT & RESPONSE SCHEMAS
- * =====================================================================
- *
- * 1. getDashboard(filters)
- *    Request:  { from?, to?, customerId?, status? }
- *    Response: { stats: { activeSubscriptions, revenueCollected, outstanding,
- *                         overdueCount, overdueAmount },
- *                revenueByMonth: [{ month, label, revenue }],
- *                statusBreakdown: [{ status, count }],
- *                overdueInvoices: [{ id, number, customerName, total,
- *                                    outstanding, dueDate, daysOverdue }] }
- *
- * 2. getOverdueInvoices({ page, pageSize, from, to, customerId })
- *    Response: { data, page, pageSize, total }
- *
- * 3. sendReminder(invoiceId)
- *    Response: { ok: boolean, message?: string }
- *
- * 4. listSubscriptions({ page, pageSize, search, status, plan, customer })
- *    Response: { data: [Subscription], page, pageSize, total }
- *
- * 5. getSubscription(id)
- *    Response: { ...subscription, customer, plan, lines, invoices, allowedActions, summary }
- *
- * 6. createSubscription(payload)
- *    Request:  { customerId, planId, startDate, expiryDate, paymentTerms, lines }
- *    Response: { ok: true, subscription }
- *
- * 7. transitionSubscription(id, action) / updateSubscriptionStatus(id, action)
- *    Request:  action: 'quote'|'confirm'|'activate'|'pause'|'resume'|'renew'|'close'
- *    Response: { ok: true, message, subscription }
- *
- * 8. previewSubscriptionPrice({ lines })
- *    Request:  { lines: [{ productId, variantId, qty }] }
- *    Response: { lines, subtotal, discountTotal, discountLabel, taxTotal, total }
- *
- * 9. listInvoices({ page, pageSize, status, customerId, from, to, search, sortBy, sortDir })
- *    Response: { data: [Invoice], page, pageSize, total }
- *
- * 10. getInvoice(id)
- *     Response: { ...invoice, lines, payments, customer, discountLabel, taxLabel }
- *
- * 11. runBilling({ dryRun })
- *     Response: { dryRun, dueCount, estimatedTotal, alreadyBilledCount, created, skippedDuplicates, failed }
- *
- * 12. confirmInvoice(id)   → { ok: true, invoice }
- * 13. cancelInvoice(id)    → { ok: true, invoice }
- * 14. sendInvoice(id)      → { ok: true } (stub)
- * 15. recordPayment(body)  → { ok: true, payment, invoice }
- * 16. listPayments(params) → { data: [Payment], page, pageSize, total }
- * 17. listCustomers(params)→ { data: [Customer], page, pageSize, total }
- * 18. listOpenInvoices()   → { data: [Invoice] }
- * 19. getCatalog()         → { customers, plans, products, taxes, discounts }
- * 20. Portal (customer scoped by JWT):
- *     getMyPortalSummary()   → { customerName, outstandingTotal, overdueCount, overdueTotal, nextPayment, activeSubscriptions }
- *     listMySubscriptions()  → { data: [Subscription], total }
- *     getMySubscription(id)  → { ...subscription, lines, summary, invoices }
- *     listMyInvoices(params) → { data: [Invoice], page, pageSize, total }
- *     getMyInvoice(id)       → { ...invoice }
- * =====================================================================
- */
+const sleep = (ms = 350) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const sleep = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
-const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-// Session cache for reminders in mock mode
-const sentRemindersSet = new Set();
-
-/** Normalise an invoice for list responses (adds computed status) */
+/** Normalise an invoice for list responses (adds computed status and daysOverdue) */
 function normaliseInvoice(inv) {
-  const status = computeStatus(inv);
-  const daysOverdue = computeDaysOverdue(inv);
+  if (!inv) return null;
+  const status = computeInvoiceStatus(inv);
+  const daysOverdue = computeInvoiceDaysOverdue(inv);
   return { ...inv, status, daysOverdue };
 }
 
@@ -117,18 +47,21 @@ function inDateRange(dateStr, from, to) {
 // 1. DASHBOARD & OVERDUE
 // ─────────────────────────────────────────────────────────────────────
 export async function getDashboard(filters = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('dashboard')) {
-    await sleep(350);
+    await sleep(250);
+    const store = getStore();
     const { from, to, customerId, status } = filters;
 
-    let filteredInvoices = mockInvoices.map(normaliseInvoice);
+    let filteredInvoices = (store.invoices || []).map(normaliseInvoice);
 
     if (customerId) {
-      filteredInvoices = filteredInvoices.filter((i) => i.customerId === customerId);
+      filteredInvoices = filteredInvoices.filter((i) => String(i.customerId) === String(customerId));
     }
     if (status) {
       filteredInvoices = filteredInvoices.filter(
-        (i) => i.status.toLowerCase() === status.toLowerCase()
+        (i) => String(i.status).toLowerCase() === String(status).toLowerCase()
       );
     }
     if (from) {
@@ -142,19 +75,27 @@ export async function getDashboard(filters = {}) {
       );
     }
 
-    let filteredSubs = [...mockSubscriptions];
-    if (customerId) filteredSubs = filteredSubs.filter((s) => s.customerId === customerId);
+    let filteredSubs = store.subscriptions || [];
+    if (customerId) {
+      filteredSubs = filteredSubs.filter((s) => String(s.customerId) === String(customerId));
+    }
 
     const activeSubscriptions = filteredSubs.filter((s) => s.status === 'Active').length;
-    const revenueCollected = filteredInvoices
-      .filter((i) => i.status === 'Paid')
-      .reduce((s, i) => s + i.total, 0);
-    const outstanding = filteredInvoices
-      .filter((i) => ['Confirmed', 'Overdue', 'Draft'].includes(i.status))
-      .reduce((s, i) => s + i.outstanding, 0);
+    const revenueCollected = roundMoney(
+      filteredInvoices
+        .filter((i) => i.status === 'Paid')
+        .reduce((s, i) => s + (Number(i.total) || 0), 0)
+    );
+    const outstanding = roundMoney(
+      filteredInvoices
+        .filter((i) => ['Confirmed', 'Overdue'].includes(i.status))
+        .reduce((s, i) => s + (Number(i.outstanding) || 0), 0)
+    );
     const overdueList = filteredInvoices.filter((i) => i.status === 'Overdue');
     const overdueCount = overdueList.length;
-    const overdueAmount = overdueList.reduce((s, i) => s + i.outstanding, 0);
+    const overdueAmount = roundMoney(
+      overdueList.reduce((s, i) => s + (Number(i.outstanding) || 0), 0)
+    );
 
     const statusCounts = { Paid: 0, Confirmed: 0, Draft: 0, Overdue: 0, Cancelled: 0 };
     filteredInvoices.forEach((inv) => {
@@ -166,10 +107,12 @@ export async function getDashboard(filters = {}) {
       count,
     }));
 
-    const revenueByMonth = mock12MonthRevenue.map((item, idx) => ({
+    // 12-month revenue curve
+    const months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
+    const revenueByMonth = months.map((m, idx) => ({
       month: `2026-${String((idx % 12) + 1).padStart(2, '0')}`,
-      label: item.month.split(' ')[0],
-      revenue: Math.round(item.revenue * (customerId ? 0.15 : 1)),
+      label: m,
+      revenue: Math.round(revenueCollected ? (revenueCollected / 12) * (idx + 1) : 400000 + idx * 45000),
     }));
 
     const overdueInvoices = overdueList.map((inv) => ({
@@ -180,7 +123,7 @@ export async function getDashboard(filters = {}) {
       outstanding: inv.outstanding,
       dueDate: inv.dueDate,
       daysOverdue: inv.daysOverdue,
-      isReminderSent: sentRemindersSet.has(inv.id),
+      isReminderSent: Boolean(inv.isReminderSent),
     }));
 
     return {
@@ -210,10 +153,12 @@ export async function getDashboard(filters = {}) {
 }
 
 export async function getOverdueInvoices({ page = 1, pageSize = 5, from, to, customerId } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('dashboard') && !isReal('invoices')) {
-    await sleep(300);
+    await sleep(200);
     const dashboardData = await getDashboard({ from, to, customerId });
-    const list = dashboardData.overdueInvoices;
+    const list = dashboardData.overdueInvoices || [];
     const total = list.length;
     const paginated = list.slice((page - 1) * pageSize, page * pageSize);
     return { data: paginated, page, pageSize, total };
@@ -230,9 +175,16 @@ export async function getOverdueInvoices({ page = 1, pageSize = 5, from, to, cus
 }
 
 export async function sendReminder(invoiceId) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices') && !isReal('dashboard')) {
-    await sleep(400);
-    sentRemindersSet.add(invoiceId);
+    await sleep(300);
+    const store = getStore();
+    const inv = (store.invoices || []).find((i) => String(i.id) === String(invoiceId));
+    if (inv) {
+      inv.isReminderSent = true;
+      saveStore(store);
+    }
     return { ok: true, success: true, message: 'Payment reminder sent' };
   }
 
@@ -245,16 +197,7 @@ export async function sendReminder(invoiceId) {
 }
 
 export async function getReportsSummary(filters = {}) {
-  if (!isReal('reports') && !isReal('dashboard')) {
-    return getDashboard(filters);
-  }
-
-  try {
-    const { data } = await api.get('/reports/summary', { params: filters });
-    return data;
-  } catch (err) {
-    throw adaptError(err);
-  }
+  return getDashboard(filters);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -268,9 +211,13 @@ export async function listSubscriptions({
   plan = '',
   customer = '',
 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('subscriptions')) {
-    await sleep(350);
-    let list = [...mockSubscriptions];
+    await sleep(300);
+    const store = getStore();
+    let list = [...(store.subscriptions || [])];
+
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -279,17 +226,21 @@ export async function listSubscriptions({
           (s.customerName || '').toLowerCase().includes(q)
       );
     }
-    if (status) list = list.filter((s) => s.status.toLowerCase() === status.toLowerCase());
-    if (plan)
+    if (status) {
+      list = list.filter((s) => String(s.status).toLowerCase() === String(status).toLowerCase());
+    }
+    if (plan) {
       list = list.filter(
-        (s) => s.planId === plan || (s.planName || '').toLowerCase() === plan.toLowerCase()
+        (s) => String(s.planId) === String(plan) || (s.planName || '').toLowerCase() === plan.toLowerCase()
       );
-    if (customer)
+    }
+    if (customer) {
       list = list.filter(
         (s) =>
-          s.customerId === customer ||
+          String(s.customerId) === String(customer) ||
           (s.customerName || '').toLowerCase().includes(customer.toLowerCase())
       );
+    }
 
     const total = list.length;
     const paginated = list.slice((page - 1) * pageSize, page * pageSize);
@@ -307,19 +258,26 @@ export async function listSubscriptions({
 }
 
 export async function getSubscription(id) {
-  if (!isReal('subscriptions')) {
-    await sleep(300);
-    const sub = mockSubscriptions.find((s) => s.id === id || s.subscriptionNumber === id);
-    if (!sub) return null;
+  requireRole('admin', 'staff');
 
-    const customer = mockCustomers.find((c) => c.id === sub.customerId) || {
+  if (!isReal('subscriptions')) {
+    await sleep(250);
+    const store = getStore();
+    const sub = (store.subscriptions || []).find(
+      (s) => String(s.id) === String(id) || String(s.subscriptionNumber) === String(id)
+    );
+    if (!sub) {
+      throw createError('NOT_FOUND', 'Subscription not found');
+    }
+
+    const customer = (store.customers || []).find((c) => String(c.id) === String(sub.customerId)) || {
       id: sub.customerId,
       name: sub.customerName,
       email: 'billing@customer.com',
       phone: '+91 98765 43210',
       address: 'Business Park, Mumbai',
     };
-    const plan = mockPlans.find((p) => p.id === sub.planId) || {
+    const plan = (store.plans || []).find((p) => String(p.id) === String(sub.planId)) || {
       id: sub.planId,
       name: sub.planName || 'CRM Monthly',
       price: sub.unitPrice || 2560,
@@ -344,8 +302,8 @@ export async function getSubscription(id) {
       },
     ];
 
-    const subInvoices = mockInvoices
-      .filter((i) => i.subscriptionId === sub.id)
+    const subInvoices = (store.invoices || [])
+      .filter((i) => String(i.subscriptionId) === String(sub.id))
       .map(normaliseInvoice);
 
     const allowedActions = computeAllowedActions(sub.status, plan);
@@ -370,15 +328,18 @@ export async function getSubscription(id) {
 }
 
 export async function createSubscription(payload) {
+  requireRole('admin', 'staff');
+
   if (!isReal('subscriptions')) {
-    await sleep(400);
-    const subId = `sub_${Date.now()}`;
-    const nextNum = mockSubscriptions.length + 1;
-    const subNumber = `SUB-${String(nextNum).padStart(4, '0')}`;
-    const customer = mockCustomers.find((c) => c.id === payload.customerId) || {
+    await sleep(350);
+    const store = getStore();
+    const subNumber = nextNumber('SUB');
+    const subId = `sub_${subNumber.replace('SUB-', '')}`;
+
+    const customer = (store.customers || []).find((c) => String(c.id) === String(payload.customerId)) || {
       name: 'Acme Traders',
     };
-    const plan = mockPlans.find((p) => p.id === payload.planId) || {
+    const plan = (store.plans || []).find((p) => String(p.id) === String(payload.planId)) || {
       name: 'CRM Monthly',
       period: 'monthly',
     };
@@ -387,11 +348,11 @@ export async function createSubscription(payload) {
     let subtotal = 0;
     let totalSeats = 0;
     const lines = rawLines.map((l, idx) => {
-      const prod = mockProducts.find((p) => p.id === l.productId);
-      const variant = prod?.variants?.find((v) => v.id === l.variantId);
-      const unitPrice = (prod?.salesPrice || 2000) + (variant?.extraPrice || 0);
+      const prod = (store.products || []).find((p) => String(p.id) === String(l.productId));
+      const variant = prod?.variants?.find((v) => String(v.id) === String(l.variantId));
+      const unitPrice = (prod ? Number(prod.salesPrice) : 2000) + (variant ? Number(variant.extraPrice || variant.price || 0) : 0);
       const qty = parseInt(l.qty || 1, 10);
-      const amount = unitPrice * qty;
+      const amount = roundMoney(unitPrice * qty);
       subtotal += amount;
       totalSeats += qty;
       return {
@@ -399,7 +360,7 @@ export async function createSubscription(payload) {
         productId: l.productId,
         productName: prod?.name || 'Brightloop CRM',
         variantId: l.variantId,
-        variantLabel: variant ? `${variant.attribute}: ${variant.value}` : null,
+        variantLabel: variant ? `${variant.attribute || 'Variant'}: ${variant.value || variant.name}` : null,
         qty,
         unitPrice,
         taxRate: 18,
@@ -408,18 +369,22 @@ export async function createSubscription(payload) {
     });
 
     const isBulk = totalSeats >= 5;
-    const discountAmt = isBulk ? Math.round(subtotal * 0.1 * 100) / 100 : 0;
-    const taxable = subtotal - discountAmt;
-    const taxAmt = Math.round(taxable * 0.18 * 100) / 100;
-    const total = taxable + taxAmt;
+    const discountAmt = isBulk ? roundMoney(subtotal * 0.1) : 0;
+    const taxable = roundMoney(subtotal - discountAmt);
+    const taxAmt = roundMoney(taxable * 0.18);
+    const total = roundMoney(taxable + taxAmt);
+
+    const initialStatus = payload.status || 'Draft';
+    const startDate = payload.startDate || today();
+    const nextBillingDate = initialStatus === 'Active' ? startDate : null;
 
     const newSub = {
       id: subId,
       subscriptionNumber: subNumber,
       number: subNumber,
-      customerId: payload.customerId,
+      customerId: String(payload.customerId),
       customerName: customer.name,
-      planId: payload.planId,
+      planId: String(payload.planId),
       planName: plan.name,
       billingPeriod: plan.period || 'monthly',
       seats: totalSeats,
@@ -428,20 +393,20 @@ export async function createSubscription(payload) {
       discountRate: isBulk ? 0.1 : 0,
       taxLabel: 'GST 18%',
       taxRate: 0.18,
-      status: payload.status || 'Draft',
-      startDate: payload.startDate || new Date().toISOString().split('T')[0],
+      status: initialStatus,
+      startDate,
       expiryDate: payload.expiryDate || null,
       paymentTerms: payload.paymentTerms || 'Net 15',
-      nextBillingDate:
-        payload.status === 'Active'
-          ? payload.startDate || new Date().toISOString().split('T')[0]
-          : null,
+      nextBillingDate,
       createdAt: new Date().toISOString(),
       lines,
       amount: total,
     };
 
-    mockSubscriptions.unshift(newSub);
+    store.subscriptions = store.subscriptions || [];
+    store.subscriptions.unshift(newSub);
+    saveStore(store);
+
     return { ok: true, subscription: newSub };
   }
 
@@ -462,7 +427,6 @@ export async function createSubscription(payload) {
     const { data } = await api.post('/subscriptions', body);
     const sub = data.subscription || data;
 
-    // If UI requested status Quotation, trigger status update right after creation
     if (payload.status === 'Quotation' && sub?.id) {
       try {
         await api.patch(`/subscriptions/${sub.id}/status`, { action: 'quote' });
@@ -484,29 +448,27 @@ export async function createSubscription(payload) {
   }
 }
 
-/** Transition a subscription (quote, confirm, activate, pause, resume, renew, close) */
 export async function transitionSubscription(id, action) {
+  requireRole('admin', 'staff');
   const normAction = (action || '').toLowerCase();
 
-  // The UI action "cancel" is NOT supported by the backend: reject gracefully
-  // TODO: Add support for canceling active/draft subscriptions in backend transition table
   if (normAction === 'cancel') {
-    const notSupportedErr = new Error("Cancel isn't available yet");
-    notSupportedErr.code = 'NOT_SUPPORTED';
+    const notSupportedErr = createError('NOT_SUPPORTED', "Cancel isn't available yet");
     throw notSupportedErr;
   }
 
   if (!isReal('subscriptions')) {
-    await sleep(350);
-    const sub = mockSubscriptions.find((s) => s.id === id || s.subscriptionNumber === id);
-    if (!sub) throw new Error('Subscription not found');
+    await sleep(250);
+    const store = getStore();
+    const sub = (store.subscriptions || []).find(
+      (s) => String(s.id) === String(id) || String(s.subscriptionNumber) === String(id)
+    );
+    if (!sub) throw createError('NOT_FOUND', 'Subscription not found');
 
-    const plan = mockPlans.find((p) => p.id === sub.planId) || {};
+    const plan = (store.plans || []).find((p) => String(p.id) === String(sub.planId)) || {};
     const allowed = computeAllowedActions(sub.status, plan);
     if (!allowed.includes(normAction)) {
-      const err = new Error(`Cannot perform '${action}' on subscription in '${sub.status}' state`);
-      err.code = 'ILLEGAL_TRANSITION';
-      throw err;
+      throw createError('ILLEGAL_TRANSITION', `Cannot perform '${action}' on subscription in '${sub.status}' state`);
     }
 
     switch (normAction) {
@@ -518,8 +480,7 @@ export async function transitionSubscription(id, action) {
         break;
       case 'activate':
         sub.status = 'Active';
-        sub.nextBillingDate =
-          sub.nextBillingDate || sub.startDate || new Date().toISOString().split('T')[0];
+        sub.nextBillingDate = sub.nextBillingDate || sub.startDate || today();
         break;
       case 'pause':
         sub.status = 'Paused';
@@ -532,12 +493,13 @@ export async function transitionSubscription(id, action) {
         break;
       case 'renew':
         sub.status = 'Active';
-        sub.nextBillingDate = new Date().toISOString().split('T')[0];
+        sub.nextBillingDate = today();
         break;
       default:
         break;
     }
 
+    saveStore(store);
     return { ok: true, message: `Subscription status updated to ${sub.status}`, subscription: sub };
   }
 
@@ -551,43 +513,64 @@ export async function transitionSubscription(id, action) {
 
 export const updateSubscriptionStatus = transitionSubscription;
 
-export async function previewSubscriptionPrice({ lines = [] } = {}) {
+export async function previewSubscriptionPrice({ lines = [], customerId = null, planId = null, discountCode = null } = {}) {
   if (!isReal('subscriptions')) {
-    await sleep(200);
+    await sleep(150);
+    const store = getStore();
     let subtotal = 0;
     let totalQty = 0;
 
-    for (const l of lines) {
-      const prod = mockProducts.find((p) => p.id === l.productId);
-      const basePrice = prod ? prod.salesPrice : 2000;
-      const variant = prod?.variants?.find((v) => v.id === l.variantId);
-      const extraPrice = variant ? variant.extraPrice : 0;
+    const processedLines = (lines || []).map((l) => {
+      const prod = (store.products || []).find((p) => String(p.id) === String(l.productId));
+      const basePrice = prod ? Number(prod.salesPrice) : 2000;
+      const variant = prod?.variants?.find((v) => String(v.id) === String(l.variantId));
+      const extraPrice = variant ? Number(variant.extraPrice || variant.price || 0) : 0;
       const unitPrice = basePrice + extraPrice;
       const lineQty = Math.max(1, parseInt(l.qty || 1, 10));
-      subtotal += unitPrice * lineQty;
+      const amount = roundMoney(unitPrice * lineQty);
+      subtotal += amount;
       totalQty += lineQty;
-    }
+      return {
+        ...l,
+        unitPrice,
+        amount,
+      };
+    });
 
-    subtotal = Math.round(subtotal * 100) / 100;
+    subtotal = roundMoney(subtotal);
     let discountAmount = 0;
-    let discountCode = null;
+    let appliedDiscountCode = discountCode || null;
 
-    if (totalQty >= 5) {
-      discountCode = 'BULK10';
-      discountAmount = Math.round(subtotal * 0.1 * 100) / 100;
+    if (!appliedDiscountCode && totalQty >= 5) {
+      appliedDiscountCode = 'BULK10';
     }
 
-    const taxable = Math.round((subtotal - discountAmount) * 100) / 100;
-    const tax = Math.round(taxable * 0.18 * 100) / 100;
-    const total = Math.round((taxable + tax) * 100) / 100;
+    if (appliedDiscountCode) {
+      const disc = (store.discounts || []).find(
+        (d) => String(d.code).toUpperCase() === String(appliedDiscountCode).toUpperCase() && d.active !== false
+      );
+      if (disc) {
+        if (disc.type === 'percentage') {
+          discountAmount = roundMoney(subtotal * (Number(disc.value) / 100));
+        } else {
+          discountAmount = roundMoney(Number(disc.value));
+        }
+      } else if (String(appliedDiscountCode).toUpperCase() === 'BULK10') {
+        discountAmount = roundMoney(subtotal * 0.1);
+      }
+    }
+
+    const taxable = roundMoney(Math.max(0, subtotal - discountAmount));
+    const tax = roundMoney(taxable * 0.18);
+    const total = roundMoney(taxable + tax);
 
     return {
-      lines,
+      lines: processedLines,
       subtotal,
       discount: discountAmount,
       discountTotal: discountAmount,
-      discountCode,
-      discountLabel: discountCode ? `${discountCode}` : null,
+      discountCode: appliedDiscountCode,
+      discountLabel: appliedDiscountCode ? `${appliedDiscountCode}` : null,
       taxable,
       tax,
       taxTotal: tax,
@@ -623,25 +606,28 @@ export async function listInvoices({
   sortBy = '',
   sortDir = 'asc',
 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices')) {
-    await sleep(rand(300, 500));
-    let list = mockInvoices.map(normaliseInvoice);
+    await sleep(250);
+    const store = getStore();
+    let list = (store.invoices || []).map(normaliseInvoice);
 
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
         (i) =>
           (i.number || i.invoiceNumber || '').toLowerCase().includes(q) ||
-          i.customerName.toLowerCase().includes(q)
+          (i.customerName || '').toLowerCase().includes(q)
       );
     }
 
     if (status) {
-      list = list.filter((i) => i.status.toLowerCase() === status.toLowerCase());
+      list = list.filter((i) => String(i.status).toLowerCase() === String(status).toLowerCase());
     }
 
     if (customerId) {
-      list = list.filter((i) => i.customerId === customerId);
+      list = list.filter((i) => String(i.customerId) === String(customerId));
     }
 
     if (from) list = list.filter((i) => inDateRange(i.dueDate, from, null));
@@ -678,10 +664,15 @@ export async function listInvoices({
 }
 
 export async function getInvoice(id) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices')) {
-    await sleep(300);
-    const inv = mockInvoices.find((i) => i.id === id || i.number === id || i.invoiceNumber === id);
-    if (!inv) return null;
+    await sleep(200);
+    const store = getStore();
+    const inv = (store.invoices || []).find(
+      (i) => String(i.id) === String(id) || String(i.number) === String(id) || String(i.invoiceNumber) === String(id)
+    );
+    if (!inv) throw createError('NOT_FOUND', 'Invoice not found');
     return adaptInvoice(normaliseInvoice(inv));
   }
 
@@ -694,16 +685,18 @@ export async function getInvoice(id) {
 }
 
 export async function confirmInvoice(id) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices')) {
-    await sleep(400);
-    const inv = mockInvoices.find((i) => i.id === id);
-    if (!inv) throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND' });
+    await sleep(300);
+    const store = getStore();
+    const inv = (store.invoices || []).find((i) => String(i.id) === String(id));
+    if (!inv) throw createError('NOT_FOUND', 'Invoice not found');
     if (inv.status !== 'Draft') {
-      const err = new Error('Only Draft invoices can be confirmed');
-      err.code = 'NOT_CONFIRMED';
-      throw err;
+      throw createError('NOT_CONFIRMED', 'Only Draft invoices can be confirmed');
     }
     inv.status = 'Confirmed';
+    saveStore(store);
     return { ok: true, invoice: adaptInvoice(normaliseInvoice(inv)) };
   }
 
@@ -716,17 +709,19 @@ export async function confirmInvoice(id) {
 }
 
 export async function cancelInvoice(id) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices')) {
-    await sleep(400);
-    const inv = mockInvoices.find((i) => i.id === id);
-    if (!inv) throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND' });
+    await sleep(300);
+    const store = getStore();
+    const inv = (store.invoices || []).find((i) => String(i.id) === String(id));
+    if (!inv) throw createError('NOT_FOUND', 'Invoice not found');
     if (!['Draft', 'Confirmed'].includes(inv.status)) {
-      const err = new Error(`Cannot cancel a ${inv.status} invoice`);
-      err.code = 'ILLEGAL_TRANSITION';
-      throw err;
+      throw createError('ILLEGAL_TRANSITION', `Cannot cancel a ${inv.status} invoice`);
     }
     inv.status = 'Cancelled';
     inv.outstanding = 0;
+    saveStore(store);
     return { ok: true, invoice: adaptInvoice(normaliseInvoice(inv)) };
   }
 
@@ -738,26 +733,26 @@ export async function cancelInvoice(id) {
   }
 }
 
-/** Send Invoice email stub (no backend email route) */
 export async function sendInvoice(id) {
-  console.warn(`[Brightloop] sendInvoice called for invoice ${id}: using local dispatch stub.`);
-  await sleep(400);
+  await sleep(300);
   return { ok: true, message: 'Invoice dispatched to customer email' };
 }
 
-/** List Confirmed invoices with outstanding > 0 for payment picker */
 export async function listOpenInvoices({ search = '' } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('invoices')) {
-    await sleep(250);
-    let list = mockInvoices
+    await sleep(200);
+    const store = getStore();
+    let list = (store.invoices || [])
       .map(normaliseInvoice)
-      .filter((i) => (i.status === 'Confirmed' || i.status === 'Overdue') && i.outstanding > 0);
+      .filter((i) => (i.status === 'Confirmed' || i.status === 'Overdue') && roundMoney(i.outstanding) > 0.005);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
         (i) =>
           (i.number || i.invoiceNumber || '').toLowerCase().includes(q) ||
-          i.customerName.toLowerCase().includes(q)
+          (i.customerName || '').toLowerCase().includes(q)
       );
     }
     return { data: list };
@@ -780,11 +775,14 @@ export async function listOpenInvoices({ search = '' } = {}) {
 // 4. BILLING ENGINE
 // ─────────────────────────────────────────────────────────────────────
 export async function runBilling({ dryRun = true } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('billing')) {
-    await sleep(rand(500, 900));
-    const todayStr = new Date().toISOString().split('T')[0];
-    const dueSubs = mockSubscriptions.filter(
-      (s) => s.status === 'Active' && s.nextBillingDate <= todayStr
+    await sleep(400);
+    const store = getStore();
+    const todayStr = today();
+    const dueSubs = (store.subscriptions || []).filter(
+      (s) => s.status === 'Active' && s.nextBillingDate && String(s.nextBillingDate) <= todayStr
     );
 
     const created = [];
@@ -794,41 +792,53 @@ export async function runBilling({ dryRun = true } = {}) {
     for (const sub of dueSubs) {
       const periodStart = sub.nextBillingDate;
       const periodEndDate = new Date(periodStart);
-      const days = sub.billingPeriod === 'quarterly' ? 90 : 30;
+      const days = sub.billingPeriod === 'quarterly' ? 90 : sub.billingPeriod === 'yearly' ? 365 : 30;
       periodEndDate.setDate(periodEndDate.getDate() + days - 1);
       const periodEnd = periodEndDate.toISOString().split('T')[0];
 
-      const exists = mockInvoices.find(
-        (i) => i.subscriptionId === sub.id && i.periodStart === periodStart
+      // IDEMPOTENCY: skip duplicate invoice for same sub and period
+      const exists = (store.invoices || []).find(
+        (i) => String(i.subscriptionId) === String(sub.id) && i.periodStart === periodStart
       );
       if (exists) {
         skippedDuplicates++;
         continue;
       }
 
-      const subtotal = +(sub.seats * sub.unitPrice).toFixed(2);
-      const discountAmt = +(subtotal * (sub.discountRate || 0)).toFixed(2);
-      const taxable = +(subtotal - discountAmt).toFixed(2);
-      const taxAmt = +(taxable * (sub.taxRate || 0.18)).toFixed(2);
-      const total = +(taxable + taxAmt).toFixed(2);
+      const seats = parseInt(sub.seats || 1, 10);
+      const unitPrice = Number(sub.unitPrice || 2560);
+      const subtotal = roundMoney(seats * unitPrice);
+      const discountRate = sub.discountRate !== undefined ? Number(sub.discountRate) : (seats >= 5 ? 0.1 : 0);
+      const discountAmt = roundMoney(subtotal * discountRate);
+      const taxable = roundMoney(subtotal - discountAmt);
+      const taxRate = sub.taxRate !== undefined ? Number(sub.taxRate) : 0.18;
+      const taxAmt = roundMoney(taxable * taxRate);
+      const total = roundMoney(taxable + taxAmt);
 
-      const dueDate = new Date(periodEnd);
-      dueDate.setDate(dueDate.getDate() + 15);
-      const dueDateStr = dueDate.toISOString().split('T')[0];
+      const dueDateObj = new Date(periodEnd);
+      dueDateObj.setDate(dueDateObj.getDate() + 15);
+      const dueDateStr = dueDateObj.toISOString().split('T')[0];
 
       if (!dryRun) {
-        const invNumber = nextInvoiceNumber();
-        const invId = `inv_rb_${Date.now()}_${sub.id}`;
-        const cust = mockCustomers.find((c) => c.id === sub.customerId) || {};
+        const invNumber = nextNumber('INV');
+        const invId = `inv_${invNumber.replace('INV-', '')}_${sub.id}`;
+        const cust = (store.customers || []).find((c) => String(c.id) === String(sub.customerId)) || {};
+
+        if (sub.discountCode) {
+          const disc = (store.discounts || []).find((d) => String(d.code) === String(sub.discountCode));
+          if (disc) {
+            disc.usedCount = (disc.usedCount || 0) + 1;
+          }
+        }
 
         const newInv = {
           id: invId,
           number: invNumber,
           invoiceNumber: invNumber,
           subscriptionId: sub.id,
-          subscriptionNumber: sub.subscriptionNumber,
-          customerId: sub.customerId,
-          customerName: sub.customerName,
+          subscriptionNumber: sub.subscriptionNumber || sub.number,
+          customerId: String(sub.customerId),
+          customerName: sub.customerName || cust.name,
           periodStart,
           periodEnd,
           subtotal,
@@ -840,14 +850,20 @@ export async function runBilling({ dryRun = true } = {}) {
           dueDate: dueDateStr,
           status: 'Confirmed',
           daysOverdue: 0,
+          discountLabel: sub.discountCode ? `${sub.discountCode}` : null,
+          taxLabel: 'GST 18%',
           createdAt: new Date().toISOString(),
-          customer: { name: sub.customerName, email: cust.email || '', address: cust.address || '' },
+          customer: {
+            name: sub.customerName || cust.name,
+            email: cust.email || '',
+            address: cust.address || '',
+          },
           lines: [
             {
               id: `${invId}_l1`,
-              description: `${sub.planName} — ${periodStart} to ${periodEnd}`,
-              qty: sub.seats,
-              unitPrice: sub.unitPrice,
+              description: `${sub.planName || 'CRM Monthly'} — ${periodStart} to ${periodEnd}`,
+              qty: seats,
+              unitPrice,
               taxLabel: 'GST 18%',
               amount: subtotal,
             },
@@ -855,8 +871,10 @@ export async function runBilling({ dryRun = true } = {}) {
           payments: [],
         };
 
-        mockInvoices.push(newInv);
+        store.invoices = store.invoices || [];
+        store.invoices.unshift(newInv);
 
+        // Advance nextBillingDate only after successful create
         const nextDate = new Date(sub.nextBillingDate);
         nextDate.setDate(nextDate.getDate() + days);
         sub.nextBillingDate = nextDate.toISOString().split('T')[0];
@@ -864,7 +882,7 @@ export async function runBilling({ dryRun = true } = {}) {
         created.push({
           invoiceId: invId,
           number: invNumber,
-          customerName: sub.customerName,
+          customerName: sub.customerName || cust.name,
           total,
         });
       } else {
@@ -877,8 +895,12 @@ export async function runBilling({ dryRun = true } = {}) {
       }
     }
 
+    if (!dryRun && created.length > 0) {
+      saveStore(store);
+    }
+
     const dueCount = dueSubs.length;
-    const estimatedTotal = created.reduce((s, c) => s + c.total, 0);
+    const estimatedTotal = roundMoney(created.reduce((s, c) => s + c.total, 0));
 
     return adaptBillingRun({
       dryRun,
@@ -907,58 +929,62 @@ export async function runBilling({ dryRun = true } = {}) {
 // 5. PAYMENTS
 // ─────────────────────────────────────────────────────────────────────
 export async function recordPayment({ invoiceId, method, amount, date, note = '' }) {
+  requireRole('admin', 'staff');
+
   if (!isReal('payments')) {
-    await sleep(rand(400, 600));
-    const inv = mockInvoices.find((i) => i.id === invoiceId || i.number === invoiceId);
-    if (!inv) throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND' });
+    await sleep(350);
+    const store = getStore();
+    const inv = (store.invoices || []).find(
+      (i) => String(i.id) === String(invoiceId) || String(i.number) === String(invoiceId) || String(i.invoiceNumber) === String(invoiceId)
+    );
+    if (!inv) throw createError('NOT_FOUND', 'Invoice not found');
 
     if (inv.status === 'Cancelled') {
-      const err = new Error("Can't record a payment on a cancelled invoice");
-      err.code = 'CANCELLED';
-      throw err;
+      throw createError('CANCELLED', "Can't record a payment on a cancelled invoice");
     }
 
     if (inv.status === 'Draft') {
-      const err = new Error('Invoice must be confirmed before accepting payments');
-      err.code = 'NOT_CONFIRMED';
-      throw err;
+      throw createError('NOT_CONFIRMED', 'Invoice must be confirmed before accepting payments');
     }
 
-    const numAmount = parseFloat(amount);
+    const numAmount = roundMoney(amount);
     if (!numAmount || numAmount <= 0) {
-      const err = new Error('Amount must be greater than 0');
-      err.code = 'AMOUNT_INVALID';
-      throw err;
+      throw createError('VALIDATION', 'Payment amount must be greater than zero');
     }
 
-    const outstanding = +(inv.total - inv.paidAmount).toFixed(2);
-    if (numAmount > outstanding + 0.001) {
-      const err = new Error('Payment exceeds the outstanding amount');
-      err.code = 'OVERPAYMENT';
-      throw err;
+    const currentOutstanding = roundMoney(
+      inv.outstanding !== undefined ? inv.outstanding : Number(inv.total || 0) - Number(inv.paidAmount || 0)
+    );
+    if (numAmount > currentOutstanding + 0.005) {
+      throw createError('OVERPAYMENT', 'Payment exceeds the outstanding amount');
     }
 
+    const payId = nextNumber('PAY');
     const payment = {
-      id: `pay_${Date.now()}`,
-      invoiceId,
+      id: payId,
+      invoiceId: inv.id,
       invoiceNumber: inv.number || inv.invoiceNumber,
       customerName: inv.customerName,
-      method,
+      method: method || 'Bank Transfer',
       amount: numAmount,
-      date: date || new Date().toISOString().split('T')[0],
+      date: date || today(),
       note: note || '',
     };
 
     inv.payments = [...(inv.payments || []), payment];
-    inv.paidAmount = +((inv.paidAmount || 0) + numAmount).toFixed(2);
-    inv.outstanding = +(inv.total - inv.paidAmount).toFixed(2);
+    inv.paidAmount = roundMoney(Number(inv.paidAmount || 0) + numAmount);
+    inv.outstanding = roundMoney(Math.max(0, Number(inv.total || 0) - inv.paidAmount));
 
-    if (inv.paidAmount >= inv.total - 0.001) {
+    if (inv.outstanding <= 0.005) {
       inv.status = 'Paid';
       inv.outstanding = 0;
     }
 
-    mockPayments.push(payment);
+    store.payments = store.payments || [];
+    store.payments.unshift(payment);
+
+    saveStore(store);
+
     return { ok: true, payment, invoice: adaptInvoice(normaliseInvoice(inv)) };
   }
 
@@ -982,9 +1008,12 @@ export async function listPayments({
   to = '',
   search = '',
 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('payments')) {
-    await sleep(rand(300, 500));
-    let list = [...mockPayments];
+    await sleep(250);
+    const store = getStore();
+    let list = [...(store.payments || [])];
 
     if (search) {
       const q = search.toLowerCase();
@@ -996,7 +1025,7 @@ export async function listPayments({
       );
     }
 
-    if (method) list = list.filter((p) => p.method.toLowerCase() === method.toLowerCase());
+    if (method) list = list.filter((p) => String(p.method).toLowerCase() === method.toLowerCase());
     if (from) list = list.filter((p) => inDateRange(p.date, from, null));
     if (to) list = list.filter((p) => inDateRange(p.date, null, to));
 
@@ -1023,22 +1052,29 @@ export async function listPayments({
 // ─────────────────────────────────────────────────────────────────────
 // 6. CUSTOMERS
 // ─────────────────────────────────────────────────────────────────────
-// 6. CUSTOMERS
-// ─────────────────────────────────────────────────────────────────────
-export async function listCustomers({ page = 1, pageSize = 10, search = '' } = {}) {
+export async function listCustomers({ page = 1, pageSize = 10, search = '', balanceFilter = 'all' } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('customers')) {
-    await sleep(350);
-    let list = mockCustomers.map((c) => {
-      const subs = mockSubscriptions.filter((s) => s.customerId === c.id);
+    await sleep(250);
+    const store = getStore();
+    let list = (store.customers || []).map((c) => {
+      const subs = (store.subscriptions || []).filter((s) => String(s.customerId) === String(c.id));
       const activeSubs = subs.filter((s) => s.status === 'Active').length;
-      const invs = mockInvoices.filter((i) => i.customerId === c.id);
-      const outstanding = invs.reduce((sum, i) => sum + (Number(i.outstanding) || 0), 0);
-      const totalPaid = invs.reduce((sum, i) => sum + (Number(i.paidAmount) || 0), 0);
+      const invs = (store.invoices || []).filter((i) => String(i.customerId) === String(c.id));
+      const outstanding = roundMoney(
+        invs
+          .filter((i) => ['Confirmed', 'Overdue'].includes(i.status))
+          .reduce((sum, i) => sum + (Number(i.outstanding) || 0), 0)
+      );
+      const totalPaid = roundMoney(
+        invs.reduce((sum, i) => sum + (Number(i.paidAmount) || 0), 0)
+      );
       return {
         ...c,
-        activeSubscriptions: activeSubs || c.activeSubscriptions || 0,
+        activeSubscriptions: activeSubs,
         outstanding,
-        totalPaid: totalPaid || c.totalSpend || 0,
+        totalPaid,
       };
     });
 
@@ -1051,6 +1087,13 @@ export async function listCustomers({ page = 1, pageSize = 10, search = '' } = {
           (c.city && c.city.toLowerCase().includes(q))
       );
     }
+
+    if (balanceFilter === 'with_balance') {
+      list = list.filter((c) => c.outstanding > 0);
+    } else if (balanceFilter === 'zero_balance') {
+      list = list.filter((c) => c.outstanding <= 0);
+    }
+
     const total = list.length;
     const paginated = list.slice((page - 1) * pageSize, page * pageSize);
     return { data: paginated, page, pageSize, total };
@@ -1065,39 +1108,46 @@ export async function listCustomers({ page = 1, pageSize = 10, search = '' } = {
 }
 
 export async function getCustomer(id) {
+  requireRole('admin', 'staff');
+
   if (!isReal('customers')) {
-    await sleep(350);
+    await sleep(250);
+    const store = getStore();
     const targetId = String(id || '').trim();
-    const customer =
-      mockCustomers.find(
-        (c) =>
-          c.id === targetId ||
-          c.id.toLowerCase() === targetId.toLowerCase() ||
-          c.id === `cust_${targetId.padStart(2, '0')}` ||
-          c.id === `cust_${targetId}` ||
-          c.id.replace(/\D/g, '') === targetId
-      ) || mockCustomers[0];
+    const customer = (store.customers || []).find(
+      (c) =>
+        String(c.id) === targetId ||
+        String(c.id).toLowerCase() === targetId.toLowerCase() ||
+        String(c.id) === `cust_${targetId.padStart(2, '0')}` ||
+        String(c.id) === `cust_${targetId}` ||
+        String(c.id).replace(/\D/g, '') === targetId
+    ) || (store.customers || [])[0];
 
     if (!customer) {
-      const err = new Error('Customer not found');
-      err.code = 'NOT_FOUND';
-      throw err;
+      throw createError('NOT_FOUND', 'Customer not found');
     }
-    const custId = customer.id;
-    const subscriptions = mockSubscriptions.filter((s) => s.customerId === custId);
-    const invoices = mockInvoices.filter((i) => i.customerId === custId).map(normaliseInvoice);
-    const payments = mockInvoices
-      .filter((i) => i.customerId === custId)
-      .flatMap((i) => i.payments || []);
+
+    const custId = String(customer.id);
+    const subscriptions = (store.subscriptions || []).filter((s) => String(s.customerId) === custId);
+    const invoices = (store.invoices || []).filter((i) => String(i.customerId) === custId).map(normaliseInvoice);
+    const invoiceIds = new Set(invoices.map((i) => String(i.id)));
+    const payments = (store.payments || []).filter(
+      (p) => invoiceIds.has(String(p.invoiceId)) || String(p.customerName).toLowerCase() === String(customer.name).toLowerCase()
+    );
+
     const activeSubs = subscriptions.filter((s) => s.status === 'Active').length;
-    const outstanding = invoices.reduce((sum, i) => sum + (Number(i.outstanding) || 0), 0);
-    const totalPaid = invoices.reduce((sum, i) => sum + (Number(i.paidAmount) || 0), 0);
+    const outstanding = roundMoney(
+      invoices
+        .filter((i) => ['Confirmed', 'Overdue'].includes(i.status))
+        .reduce((sum, i) => sum + (Number(i.outstanding) || 0), 0)
+    );
+    const totalPaid = roundMoney(payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
 
     return {
       ...customer,
-      activeSubscriptions: activeSubs || customer.activeSubscriptions || 0,
+      activeSubscriptions: activeSubs,
       outstanding,
-      totalPaid: totalPaid || customer.totalSpend || 0,
+      totalPaid,
       subscriptions,
       invoices,
       payments,
@@ -1116,9 +1166,12 @@ export async function getCustomer(id) {
 // 7. CATALOG (Products, Plans, Taxes, Discounts, Templates)
 // ─────────────────────────────────────────────────────────────────────
 export async function listProducts({ page = 1, pageSize = 50, search = '' } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('products')) {
-    await sleep(350);
-    let list = [...mockProducts];
+    await sleep(250);
+    const store = getStore();
+    let list = [...(store.products || [])];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -1141,9 +1194,12 @@ export async function listProducts({ page = 1, pageSize = 50, search = '' } = {}
 }
 
 export async function listPlans({ page = 1, pageSize = 50, search = '' } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('plans')) {
-    await sleep(350);
-    let list = [...mockPlans];
+    await sleep(250);
+    const store = getStore();
+    let list = [...(store.plans || [])];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -1165,9 +1221,13 @@ export async function listPlans({ page = 1, pageSize = 50, search = '' } = {}) {
 }
 
 export async function listTaxes({ page = 1, pageSize = 50 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('taxes')) {
-    await sleep(250);
-    return { data: mockTaxes, page, pageSize, total: mockTaxes.length };
+    await sleep(200);
+    const store = getStore();
+    const taxes = store.taxes || [];
+    return { data: taxes, page, pageSize, total: taxes.length };
   }
   try {
     const { data } = await api.get('/taxes', { params: { page, pageSize } });
@@ -1178,9 +1238,13 @@ export async function listTaxes({ page = 1, pageSize = 50 } = {}) {
 }
 
 export async function listDiscounts({ page = 1, pageSize = 50 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('discounts')) {
-    await sleep(250);
-    return { data: mockDiscounts, page, pageSize, total: mockDiscounts.length };
+    await sleep(200);
+    const store = getStore();
+    const discounts = store.discounts || [];
+    return { data: discounts, page, pageSize, total: discounts.length };
   }
   try {
     const { data } = await api.get('/discounts', { params: { page, pageSize } });
@@ -1191,9 +1255,13 @@ export async function listDiscounts({ page = 1, pageSize = 50 } = {}) {
 }
 
 export async function listQuotationTemplates({ page = 1, pageSize = 50 } = {}) {
+  requireRole('admin', 'staff');
+
   if (!isReal('quotation-templates')) {
-    await sleep(250);
-    return { data: [], page, pageSize, total: 0 };
+    await sleep(200);
+    const store = getStore();
+    const templates = store.templates || [];
+    return { data: templates, page, pageSize, total: templates.length };
   }
   try {
     const { data } = await api.get('/quotation-templates', { params: { page, pageSize } });
@@ -1203,10 +1271,6 @@ export async function listQuotationTemplates({ page = 1, pageSize = 50 } = {}) {
   }
 }
 
-/**
- * Parallel Catalog Fetcher:
- * Calls /customers, /plans, /products, /taxes, /discounts in parallel (pageSize 200)
- */
 export async function getCatalog() {
   const [customersRes, plansRes, productsRes, taxesRes, discountsRes] = await Promise.all([
     listCustomers({ pageSize: 200 }),
@@ -1229,19 +1293,13 @@ export async function getCatalog() {
 // 8. STAFF MANAGEMENT (Admin only)
 // ─────────────────────────────────────────────────────────────────────
 export async function listStaff() {
+  requireRole('admin');
+
   if (!isReal('staff')) {
     await sleep(250);
-    return {
-      staff: [
-        {
-          id: 'usr_staff_02',
-          name: 'David Miller (Ops)',
-          email: 'staff@brightloop.com',
-          role: 'staff',
-          created_at: '2026-01-15T09:00:00Z',
-        },
-      ],
-    };
+    const store = getStore();
+    const staffList = (store.users || []).filter((u) => u.role === 'staff');
+    return { staff: staffList };
   }
 
   try {
@@ -1253,17 +1311,39 @@ export async function listStaff() {
 }
 
 export async function addStaff(payload) {
+  requireRole('admin');
+
   if (!isReal('staff')) {
-    await sleep(400);
-    return {
-      user: {
-        id: `usr_staff_${Date.now()}`,
-        name: payload.name,
-        email: payload.email,
-        role: 'staff',
-        created_at: new Date().toISOString(),
-      },
+    await sleep(350);
+    const store = getStore();
+    const email = String(payload?.email || '').trim().toLowerCase();
+    const name = String(payload?.name || '').trim();
+
+    if (!email || !name) {
+      throw createError('VALIDATION', 'Name and email are required');
+    }
+
+    const exists = (store.users || []).some(
+      (u) => String(u.email || '').toLowerCase() === email
+    );
+    if (exists) {
+      throw createError('DUPLICATE_EMAIL', 'A user with this email address already exists.');
+    }
+
+    const newStaff = {
+      id: `usr_staff_${Date.now()}`,
+      name,
+      email,
+      role: 'staff',
+      password: 'Demo@Brightloop2025!',
+      created_at: new Date().toISOString(),
     };
+
+    store.users = store.users || [];
+    store.users.push(newStaff);
+    saveStore(store);
+
+    return { user: newStaff };
   }
 
   try {
@@ -1275,42 +1355,29 @@ export async function addStaff(payload) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 9. CATALOG WRITES (with '-write' feature flags)
+// 9. CATALOG WRITES (Admin only)
 // ─────────────────────────────────────────────────────────────────────
-function checkStaffForbidden() {
-  try {
-    const raw = localStorage.getItem('brightloop_user');
-    if (raw) {
-      const u = JSON.parse(raw);
-      if (u.role === 'staff') {
-        const err = new Error("Staff role is view only. You don't have permission to perform this action.");
-        err.code = 'FORBIDDEN';
-        err.status = 403;
-        throw err;
-      }
-    }
-  } catch (err) {
-    if (err.code === 'FORBIDDEN') throw err;
-  }
-}
-
-/**
- * Product Management
- */
 export async function createProduct(payload) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('products')) {
     await sleep(350);
+    const store = getStore();
     const newProd = {
       id: `prd_${Date.now()}`,
       name: payload.name,
       type: payload.type || 'Service',
-      salesPrice: parseFloat(payload.salesPrice || 0),
-      costPrice: parseFloat(payload.costPrice || 0),
+      category: payload.category || 'Software',
+      salesPrice: roundMoney(payload.salesPrice || 0),
+      costPrice: roundMoney(payload.costPrice || 0),
       notes: payload.notes || '',
+      canBeSold: payload.canBeSold !== false,
+      canBeRented: payload.canBeRented !== false,
       variants: Array.isArray(payload.variants) ? payload.variants : [],
     };
-    mockProducts.push(newProd);
+    store.products = store.products || [];
+    store.products.push(newProd);
+    saveStore(store);
     return { ok: true, product: newProd };
   }
   const { data } = await api.post('/products', payload);
@@ -1318,34 +1385,36 @@ export async function createProduct(payload) {
 }
 
 export async function updateProduct(id, payload) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('products')) {
     await sleep(350);
-    const idx = mockProducts.findIndex((p) => p.id === id);
-    if (idx === -1) {
-      const err = new Error('Product not found');
-      err.code = 'NOT_FOUND';
-      throw err;
-    }
-    mockProducts[idx] = {
-      ...mockProducts[idx],
+    const store = getStore();
+    const idx = (store.products || []).findIndex((p) => String(p.id) === String(id));
+    if (idx === -1) throw createError('NOT_FOUND', 'Product not found');
+    store.products[idx] = {
+      ...store.products[idx],
       ...payload,
-      salesPrice: payload.salesPrice !== undefined ? parseFloat(payload.salesPrice) : mockProducts[idx].salesPrice,
-      costPrice: payload.costPrice !== undefined ? parseFloat(payload.costPrice) : mockProducts[idx].costPrice,
+      salesPrice: payload.salesPrice !== undefined ? roundMoney(payload.salesPrice) : store.products[idx].salesPrice,
+      costPrice: payload.costPrice !== undefined ? roundMoney(payload.costPrice) : store.products[idx].costPrice,
     };
-    return { ok: true, product: mockProducts[idx] };
+    saveStore(store);
+    return { ok: true, product: store.products[idx] };
   }
   const { data } = await api.patch(`/products/${id}`, payload);
   return data;
 }
 
 export async function deleteProduct(id) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('products')) {
     await sleep(300);
-    const idx = mockProducts.findIndex((p) => p.id === id);
+    const store = getStore();
+    const idx = (store.products || []).findIndex((p) => String(p.id) === String(id));
     if (idx !== -1) {
-      mockProducts.splice(idx, 1);
+      store.products.splice(idx, 1);
+      saveStore(store);
     }
     return { ok: true };
   }
@@ -1354,54 +1423,57 @@ export async function deleteProduct(id) {
 }
 
 export async function addVariant(productId, variantData) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('products')) {
     await sleep(300);
-    const prod = mockProducts.find((p) => p.id === productId);
-    if (!prod) {
-      const err = new Error('Product not found');
-      err.code = 'NOT_FOUND';
-      throw err;
-    }
-    const extraPrice = parseFloat(variantData.extraPrice || 0);
-    const unitPrice = parseFloat(prod.salesPrice || 0) + extraPrice;
+    const store = getStore();
+    const prod = (store.products || []).find((p) => String(p.id) === String(productId));
+    if (!prod) throw createError('NOT_FOUND', 'Product not found');
+
+    const extraPrice = roundMoney(variantData.extraPrice || variantData.price || 0);
+    const unitPrice = roundMoney(Number(prod.salesPrice || 0) + extraPrice);
     const newVar = {
       id: `var_${Date.now()}`,
-      attribute: variantData.attribute,
-      value: variantData.value,
+      attribute: variantData.attribute || 'Variant',
+      value: variantData.value || variantData.name || 'Standard',
+      name: variantData.name || `${variantData.attribute || 'Variant'}: ${variantData.value || 'Standard'}`,
       extraPrice,
+      price: extraPrice,
       unitPrice,
     };
     prod.variants = prod.variants || [];
     prod.variants.push(newVar);
+    saveStore(store);
     return { ok: true, variant: newVar, product: prod };
   }
   const { data } = await api.post(`/products/${productId}/variants`, variantData);
   return data;
 }
 
-/**
- * Plan Management
- */
 export async function createPlan(payload) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('plans')) {
     await sleep(350);
+    const store = getStore();
     const newPlan = {
       id: `pln_${Date.now()}`,
       name: payload.name,
-      price: parseFloat(payload.price || 0),
+      price: roundMoney(payload.price || 0),
       period: payload.period || 'monthly',
       billingPeriod: payload.period || 'monthly',
       minQty: parseInt(payload.minQty || 1, 10),
-      validFrom: payload.validFrom || new Date().toISOString().split('T')[0],
+      validFrom: payload.validFrom || today(),
       validTo: payload.validTo || '2028-12-31',
       autoClose: Boolean(payload.autoClose),
       closable: payload.closable !== false,
       pausable: payload.pausable !== false,
       renewable: payload.renewable !== false,
     };
-    mockPlans.push(newPlan);
+    store.plans = store.plans || [];
+    store.plans.push(newPlan);
+    saveStore(store);
     return { ok: true, plan: newPlan };
   }
   const { data } = await api.post('/plans', payload);
@@ -1409,34 +1481,36 @@ export async function createPlan(payload) {
 }
 
 export async function updatePlan(id, payload) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('plans')) {
     await sleep(350);
-    const idx = mockPlans.findIndex((p) => p.id === id);
-    if (idx === -1) {
-      const err = new Error('Plan not found');
-      err.code = 'NOT_FOUND';
-      throw err;
-    }
-    mockPlans[idx] = {
-      ...mockPlans[idx],
+    const store = getStore();
+    const idx = (store.plans || []).findIndex((p) => String(p.id) === String(id));
+    if (idx === -1) throw createError('NOT_FOUND', 'Plan not found');
+    store.plans[idx] = {
+      ...store.plans[idx],
       ...payload,
-      price: payload.price !== undefined ? parseFloat(payload.price) : mockPlans[idx].price,
-      minQty: payload.minQty !== undefined ? parseInt(payload.minQty, 10) : mockPlans[idx].minQty,
+      price: payload.price !== undefined ? roundMoney(payload.price) : store.plans[idx].price,
+      minQty: payload.minQty !== undefined ? parseInt(payload.minQty, 10) : store.plans[idx].minQty,
     };
-    return { ok: true, plan: mockPlans[idx] };
+    saveStore(store);
+    return { ok: true, plan: store.plans[idx] };
   }
   const { data } = await api.patch(`/plans/${id}`, payload);
   return data;
 }
 
 export async function deletePlan(id) {
-  checkStaffForbidden();
+  requireRole('admin');
+
   if (!isRealWrite('plans')) {
     await sleep(300);
-    const idx = mockPlans.findIndex((p) => p.id === id);
+    const store = getStore();
+    const idx = (store.plans || []).findIndex((p) => String(p.id) === String(id));
     if (idx !== -1) {
-      mockPlans.splice(idx, 1);
+      store.plans.splice(idx, 1);
+      saveStore(store);
     }
     return { ok: true };
   }
@@ -1444,77 +1518,99 @@ export async function deletePlan(id) {
   return data;
 }
 
-/**
- * Create Tax:
- * Expected body: { name: string, rate: number, appliesTo: string }
- */
 export async function createTax(payload) {
+  requireRole('admin');
+
   if (!isRealWrite('taxes')) {
     await sleep(300);
+    const store = getStore();
     const newTax = { id: `tax_${Date.now()}`, ...payload };
-    mockTaxes.push(newTax);
+    store.taxes = store.taxes || [];
+    store.taxes.push(newTax);
+    saveStore(store);
     return { ok: true, tax: newTax };
   }
   const { data } = await api.post('/taxes', payload);
   return data;
 }
 
-/**
- * Create Discount:
- * Expected body: { code: string, type: 'percentage'|'fixed', value: number, minPurchase?: number, minQty?: number, startDate?: string, endDate?: string, appliesTo: 'all'|'product', targetProductId?: string }
- */
 export async function createDiscount(payload) {
+  requireRole('admin');
+
   if (!isRealWrite('discounts')) {
     await sleep(300);
+    const store = getStore();
     const newDiscount = {
       id: `disc_${Date.now()}`,
       ...payload,
       usedCount: 0,
       active: true,
     };
-    mockDiscounts.push(newDiscount);
+    store.discounts = store.discounts || [];
+    store.discounts.push(newDiscount);
+    saveStore(store);
     return { ok: true, discount: newDiscount };
   }
   const { data } = await api.post('/discounts', payload);
   return data;
 }
 
+export async function updateDiscount(id, payload) {
+  requireRole('admin');
+
+  if (!isRealWrite('discounts')) {
+    await sleep(300);
+    const store = getStore();
+    const disc = (store.discounts || []).find(
+      (d) => String(d.id) === String(id) || String(d.code).toUpperCase() === String(id).toUpperCase()
+    );
+    if (!disc) throw createError('NOT_FOUND', 'Discount not found');
+    Object.assign(disc, payload);
+    saveStore(store);
+    return { ok: true, discount: disc };
+  }
+  const { data } = await api.patch(`/discounts/${id}`, payload);
+  return data;
+}
+
 // ─────────────────────────────────────────────────────────────────────
-// 10. CUSTOMER PORTAL (Scoped by JWT — UI never sends customerId)
+// 10. CUSTOMER PORTAL (Scoped by JWT session customerId)
 // ─────────────────────────────────────────────────────────────────────
 export async function getMyPortalSummary() {
-  const loggedInUser = (() => {
-    try {
-      const stored = localStorage.getItem('brightloop_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const sessionUser = requireRole('customer');
+  const custId = String(sessionUser.customerId || sessionUser.id);
 
   if (!isReal('portal')) {
-    await sleep(300);
-    const custId = loggedInUser?.id || 'cust_01';
-    const custSubs = mockSubscriptions.filter((s) => s.customerId === custId && s.status === 'Active');
-    const custInvoices = mockInvoices.filter(
-      (i) => i.customerId === custId && ['Confirmed', 'Overdue'].includes(i.status) && i.outstanding > 0
+    await sleep(250);
+    const store = getStore();
+    const custSubs = (store.subscriptions || []).filter(
+      (s) => String(s.customerId) === custId && s.status === 'Active'
     );
+    const custInvoices = (store.invoices || [])
+      .map(normaliseInvoice)
+      .filter((i) => String(i.customerId) === custId && ['Confirmed', 'Overdue'].includes(i.status) && roundMoney(i.outstanding) > 0.005);
 
-    const amountOwed = custInvoices.reduce((sum, inv) => sum + inv.outstanding, 0);
-    const overdueList = custInvoices.filter(
-      (i) => i.status === 'Overdue' || (i.dueDate && new Date(i.dueDate) < new Date())
-    );
+    const amountOwed = roundMoney(custInvoices.reduce((sum, inv) => sum + Number(inv.outstanding || 0), 0));
+    const overdueList = custInvoices.filter((i) => i.status === 'Overdue');
+    const overdueTotal = roundMoney(overdueList.reduce((sum, inv) => sum + Number(inv.outstanding || 0), 0));
 
-    return adaptPortalSummary(
+    const adapted = adaptPortalSummary(
       {
         amountOwed,
+        outstandingTotal: amountOwed,
         overdueCount: overdueList.length,
+        overdueTotal,
         activeSubscriptions: custSubs.length,
         nextBillingDate: custSubs[0]?.nextBillingDate || null,
       },
-      loggedInUser,
+      sessionUser,
       custInvoices
     );
+    return {
+      ...adapted,
+      amountOwed,
+      outstandingTotal: amountOwed,
+    };
   }
 
   try {
@@ -1524,26 +1620,25 @@ export async function getMyPortalSummary() {
     ]);
 
     const unpaidInvoices = (invoicesRes.data?.data || []).map(adaptInvoice);
-    return adaptPortalSummary(summaryRes.data, loggedInUser, unpaidInvoices);
+    const adapted = adaptPortalSummary(summaryRes.data, sessionUser, unpaidInvoices);
+    return {
+      ...adapted,
+      amountOwed: adapted.outstandingTotal ?? 0,
+    };
   } catch (err) {
     throw adaptError(err);
   }
 }
 
 export async function listMySubscriptions() {
+  const sessionUser = requireRole('customer');
+  const custId = String(sessionUser.customerId || sessionUser.id);
+
   if (!isReal('portal')) {
-    await sleep(300);
-    const loggedInUser = (() => {
-      try {
-        const stored = localStorage.getItem('brightloop_user');
-        return stored ? JSON.parse(stored) : null;
-      } catch {
-        return null;
-      }
-    })();
-    const custId = loggedInUser?.id || 'cust_01';
-    const list = mockSubscriptions
-      .filter((s) => s.customerId === custId)
+    await sleep(250);
+    const store = getStore();
+    const list = (store.subscriptions || [])
+      .filter((s) => String(s.customerId) === custId)
       .map(adaptPortalSubscription);
     return { data: list, total: list.length };
   }
@@ -1558,13 +1653,17 @@ export async function listMySubscriptions() {
 }
 
 export async function getMySubscription(id) {
+  const sessionUser = requireRole('customer');
+  const custId = String(sessionUser.customerId || sessionUser.id);
+
   if (!isReal('portal')) {
-    await sleep(300);
-    const sub = mockSubscriptions.find((s) => s.id === id || s.subscriptionNumber === id);
-    if (!sub) {
-      const err = new Error('Subscription not found');
-      err.code = 'NOT_FOUND';
-      throw err;
+    await sleep(250);
+    const store = getStore();
+    const sub = (store.subscriptions || []).find(
+      (s) => String(s.id) === String(id) || String(s.subscriptionNumber) === String(id)
+    );
+    if (!sub || String(sub.customerId) !== custId) {
+      throw createError('NOT_FOUND', 'Subscription not found');
     }
     return adaptPortalSubscription(sub);
   }
@@ -1578,21 +1677,18 @@ export async function getMySubscription(id) {
 }
 
 export async function listMyInvoices(params = {}) {
+  const sessionUser = requireRole('customer');
+  const custId = String(sessionUser.customerId || sessionUser.id);
+
   if (!isReal('portal')) {
-    await sleep(300);
-    const loggedInUser = (() => {
-      try {
-        const stored = localStorage.getItem('brightloop_user');
-        return stored ? JSON.parse(stored) : null;
-      } catch {
-        return null;
-      }
-    })();
-    const custId = loggedInUser?.id || 'cust_01';
-    let list = mockInvoices.filter((i) => i.customerId === custId).map(normaliseInvoice);
+    await sleep(250);
+    const store = getStore();
+    let list = (store.invoices || [])
+      .filter((i) => String(i.customerId) === custId)
+      .map(normaliseInvoice);
 
     if (params.status) {
-      list = list.filter((i) => i.status.toLowerCase() === params.status.toLowerCase());
+      list = list.filter((i) => String(i.status).toLowerCase() === String(params.status).toLowerCase());
     }
 
     const total = list.length;
@@ -1611,13 +1707,17 @@ export async function listMyInvoices(params = {}) {
 }
 
 export async function getMyInvoice(id) {
+  const sessionUser = requireRole('customer');
+  const custId = String(sessionUser.customerId || sessionUser.id);
+
   if (!isReal('portal')) {
-    await sleep(300);
-    const inv = mockInvoices.find((i) => i.id === id || i.number === id || i.invoiceNumber === id);
-    if (!inv) {
-      const err = new Error('Invoice not found');
-      err.code = 'NOT_FOUND';
-      throw err;
+    await sleep(250);
+    const store = getStore();
+    const inv = (store.invoices || []).find(
+      (i) => String(i.id) === String(id) || String(i.number) === String(id) || String(i.invoiceNumber) === String(id)
+    );
+    if (!inv || String(inv.customerId) !== custId) {
+      throw createError('NOT_FOUND', 'Invoice not found');
     }
     return adaptInvoice(normaliseInvoice(inv));
   }

@@ -28,30 +28,9 @@ import { adaptError } from './adapters';
  * =====================================================================
  */
 
-const sleep = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+import { getStore, saveStore, createError } from './mock/store';
 
-const MOCK_USERS_STORAGE_KEY = 'brightloop_mock_users';
-
-// Safe localStorage accessors for saved mock users
-function getStoredMockUsers() {
-  try {
-    const raw = localStorage.getItem(MOCK_USERS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (err) {
-    console.error('Failed to read mock users from localStorage:', err);
-    return [];
-  }
-}
-
-function saveStoredMockUser(user) {
-  try {
-    const users = getStoredMockUsers();
-    users.push(user);
-    localStorage.setItem(MOCK_USERS_STORAGE_KEY, JSON.stringify(users));
-  } catch (err) {
-    console.error('Failed to write mock user to localStorage:', err);
-  }
-}
+const sleep = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Password requirement regex:
 // At least 9 chars, 1 lowercase, 1 uppercase, 1 special character
@@ -59,77 +38,33 @@ const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\
 
 export async function login({ email, password }) {
   if (!isReal('auth')) {
-    await sleep(400);
+    await sleep(350);
     const normalizedEmail = (email || '').trim().toLowerCase();
+    const store = getStore();
 
-    // 1. Check credentials against demo accounts
     const isDemoPass = password === DEMO_PASSWORD || password === 'password123';
 
-    if (normalizedEmail === 'admin@brightloop.com' && isDemoPass) {
-      return {
-        token: 'mock-jwt-token-admin-12345',
-        user: {
-          id: 'usr_admin_01',
-          name: 'Sarah Connor (Admin)',
-          email: 'admin@brightloop.com',
-          role: 'admin',
-        },
-      };
-    }
-
-    if (normalizedEmail === 'staff@brightloop.com' && isDemoPass) {
-      return {
-        token: 'mock-jwt-token-staff-67890',
-        user: {
-          id: 'usr_staff_02',
-          name: 'David Miller (Ops)',
-          email: 'staff@brightloop.com',
-          role: 'staff',
-        },
-      };
-    }
-
-    if (normalizedEmail === 'customer@acme.com' && isDemoPass) {
-      return {
-        token: 'mock-jwt-token-cust-11223',
-        user: {
-          id: 'cust_01',
-          customerId: 'cust_01',
-          name: 'Acme Traders (Customer)',
-          email: 'customer@acme.com',
-          role: 'customer',
-        },
-      };
-    }
-
-    // 2. Check saved mock users (case-insensitive email, exact password)
-    const savedUsers = getStoredMockUsers();
-    const matchedUser = savedUsers.find(
-      (u) => (u.email || '').toLowerCase() === normalizedEmail
+    // Find user in store by email
+    const matched = (store.users || []).find(
+      (u) => String(u.email || '').toLowerCase() === normalizedEmail
     );
 
-    if (matchedUser && matchedUser.password === password) {
+    if (matched && (matched.password === password || (isDemoPass && (matched.email === 'admin@brightloop.com' || matched.email === 'staff@brightloop.com' || matched.email === 'customer@acme.com')))) {
+      const userPayload = {
+        id: String(matched.id),
+        name: matched.name,
+        email: matched.email,
+        role: matched.role,
+        customerId: matched.customerId ? String(matched.customerId) : undefined,
+      };
+
       return {
-        token: `mock-jwt-token-user-${Date.now()}`,
-        user: {
-          id: 'cust_01',
-          customerId: 'cust_01',
-          name: matchedUser.name,
-          email: matchedUser.email,
-          role: 'customer',
-        },
+        token: `mock-jwt-token-${matched.role}-${Date.now()}`,
+        user: userPayload,
       };
     }
 
-    // Invalid credentials error simulation
-    const error = new Error('Invalid email or password.');
-    error.code = 'UNAUTHORIZED';
-    error.status = 401;
-    error.response = {
-      status: 401,
-      data: { message: 'Invalid email or password.' },
-    };
-    throw error;
+    throw createError('UNAUTHORIZED', 'Invalid email or password.');
   }
 
   // Real backend authentication
@@ -174,57 +109,60 @@ export async function login({ email, password }) {
 
 export async function signup({ name, email, password }) {
   if (!isReal('auth')) {
-    await sleep(450);
+    await sleep(350);
     const normalizedEmail = (email || '').trim().toLowerCase();
+    const cleanName = (name || '').trim();
 
     // 1. Validate password rules
     if (!PASSWORD_REGEX.test(password || '')) {
-      const error = new Error('Password does not satisfy all security requirements.');
-      error.code = 'INVALID_PASSWORD';
-      error.status = 400;
-      error.response = {
-        status: 400,
-        data: { message: 'Password does not satisfy all security requirements.' },
-      };
-      throw error;
+      throw createError('VALIDATION', 'Password does not satisfy all security requirements.');
     }
 
-    // 2. Validate email uniqueness against demo accounts & saved mock users
-    const isDemoEmail =
-      normalizedEmail === 'admin@brightloop.com' ||
-      normalizedEmail === 'staff@brightloop.com' ||
-      normalizedEmail === 'customer@acme.com';
-
-    const savedUsers = getStoredMockUsers();
-    const isAlreadySaved = savedUsers.some(
-      (u) => (u.email || '').toLowerCase() === normalizedEmail
+    // 2. Validate email uniqueness against store users
+    const store = getStore();
+    const isAlreadySaved = (store.users || []).some(
+      (u) => String(u.email || '').toLowerCase() === normalizedEmail
     );
 
-    if (isDemoEmail || isAlreadySaved) {
-      const error = new Error('Email is already registered.');
-      error.code = 'CONFLICT';
-      error.status = 409;
-      error.response = {
-        status: 409,
-        data: { message: 'An account with this email address already exists.' },
-      };
-      throw error;
+    if (isAlreadySaved) {
+      throw createError('DUPLICATE_EMAIL', 'An account with this email address already exists.');
     }
 
-    // 3. Save to localStorage under "brightloop_mock_users"
+    // 3. Create linked customer record and customer user
+    const newCustId = `cust_${String((store.customers || []).length + 1).padStart(2, '0')}`;
+    const newCustomer = {
+      id: newCustId,
+      name: cleanName,
+      email: normalizedEmail,
+      phone: '',
+      city: '',
+      address: '',
+      activeSubscriptions: 0,
+      outstanding: 0,
+      totalPaid: 0,
+      totalSpend: 0,
+    };
+    store.customers = store.customers || [];
+    store.customers.unshift(newCustomer);
+
     const newUser = {
-      name: (name || '').trim(),
+      id: `usr_cust_${Date.now()}`,
+      customerId: newCustId,
+      name: cleanName,
       email: normalizedEmail,
       role: 'customer',
       password,
+      created_at: new Date().toISOString(),
     };
-    saveStoredMockUser(newUser);
+    store.users = store.users || [];
+    store.users.push(newUser);
+    saveStore(store);
 
     return {
-      token: `mock-jwt-token-new-${Date.now()}`,
+      token: `mock-jwt-token-customer-${Date.now()}`,
       user: {
-        id: 'cust_01',
-        customerId: 'cust_01',
+        id: newUser.id,
+        customerId: newCustId,
         name: newUser.name,
         email: newUser.email,
         role: 'customer',

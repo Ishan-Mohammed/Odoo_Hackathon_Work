@@ -128,7 +128,9 @@ export default function InvoicesPage() {
 
   // ── Customers ─────────────────────────────────────────────────────
   useEffect(() => {
-    listCustomers({ pageSize: 100 }).then((res) => setCustomers(res.data || []));
+    listCustomers({ pageSize: 100 })
+      .then((res) => setCustomers(res.data || []))
+      .catch(() => setCustomers([]));
   }, []);
 
   // ── Reset ─────────────────────────────────────────────────────────

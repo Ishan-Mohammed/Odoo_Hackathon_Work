@@ -218,7 +218,7 @@ export function computeAllowedActions(status, plan = {}) {
   const actions = [];
   switch (status) {
     case 'Draft':
-      actions.push('quote', 'cancel');
+      actions.push('quote', 'confirm', 'cancel');
       break;
     case 'Quotation':
       actions.push('confirm', 'cancel');

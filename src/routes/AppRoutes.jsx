@@ -37,6 +37,12 @@ import CustomerDetailPage from '../pages/customers/CustomerDetailPage';
 import ProductsPage from '../pages/products/ProductsPage';
 import PlansPage from '../pages/plans/PlansPage';
 import ReportsPage from '../pages/reports/ReportsPage';
+import StaffPage from '../pages/staff/StaffPage';
+
+// Customer Portal & Dev Smoke Test
+import PortalPage from '../pages/portal/PortalPage';
+import PortalInvoicesPage from '../pages/portal/PortalInvoicesPage';
+import SmokeTestPage from '../pages/dev/SmokeTestPage';
 
 export default function AppRoutes() {
   return (
@@ -139,10 +145,7 @@ export default function AppRoutes() {
           path="/staff"
           element={
             <AdminOnlyRoute>
-              <GenericPlaceholderPage
-                title="Staff"
-                subtitle="Team member accounts, roles, and administrative access"
-              />
+              <StaffPage />
             </AdminOnlyRoute>
           }
         />
@@ -161,6 +164,7 @@ export default function AppRoutes() {
         {/* Hidden Dev Showcases & API Diagnostics */}
         <Route path="/dev/components" element={<DevComponentsPage />} />
         <Route path="/dev/api-check" element={<ApiCheckPage />} />
+        <Route path="/dev/smoke-test" element={<SmokeTestPage />} />
       </Route>
 
       {/* ========================================================= */}
@@ -168,20 +172,13 @@ export default function AppRoutes() {
       {/* ========================================================= */}
       <Route
         element={
-          <ProtectedRoute allowedRoles={['customer', 'admin', 'staff']}>
+          <ProtectedRoute allowedRoles={['customer']}>
             <PortalShell />
           </ProtectedRoute>
         }
       >
-        <Route
-          path="/portal"
-          element={
-            <GenericPlaceholderPage
-              title="My Subscriptions"
-              subtitle="Manage your active subscriptions, renewal dates, and seats"
-            />
-          }
-        />
+        <Route path="/portal" element={<PortalPage />} />
+        <Route path="/portal/invoices" element={<PortalInvoicesPage />} />
         <Route
           path="/portal/subscriptions/:id"
           element={
@@ -189,15 +186,6 @@ export default function AppRoutes() {
               title="Subscription Overview"
               subtitle="View plan details, usage, and seat allocations"
               breadcrumb={[{ label: 'My Subscriptions', href: '/portal' }, { label: 'Details' }]}
-            />
-          }
-        />
-        <Route
-          path="/portal/invoices"
-          element={
-            <GenericPlaceholderPage
-              title="My Invoices"
-              subtitle="View invoice history, download PDF receipts, and verify payments"
             />
           }
         />

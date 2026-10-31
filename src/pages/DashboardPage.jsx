@@ -21,6 +21,7 @@ import StatusDonut from './dashboard/StatusDonut';
 import OverdueTable from './dashboard/OverdueTable';
 
 import { getDashboard, getOverdueInvoices } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * =====================================================================
@@ -60,6 +61,7 @@ import { getDashboard, getOverdueInvoices } from '../api/client';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [filters, setFilters] = useState({});
   const [dashboardData, setDashboardData] = useState(null);
@@ -142,7 +144,7 @@ export default function DashboardPage() {
       {/* 1. Page Header */}
       <PageHeader
         title="Dashboard"
-        subtitle={`Period: ${dateRangeLabel}`}
+        subtitle={`Hi, ${user?.name || 'there'} • Period: ${dateRangeLabel}`}
         actions={
           <div className="flex items-center gap-2.5">
             <Button

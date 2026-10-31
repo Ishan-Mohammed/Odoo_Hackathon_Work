@@ -110,6 +110,7 @@ export default function PaymentsPage() {
     setPickerLoading(true);
     listOpenInvoices({ search: debouncedPicker })
       .then((res) => setOpenInvs(res.data || []))
+      .catch(() => setOpenInvs([]))
       .finally(() => setPickerLoading(false));
   }, [drawerOpen, debouncedPicker]);
 

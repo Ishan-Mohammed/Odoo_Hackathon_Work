@@ -80,6 +80,8 @@ export default function NewSubscriptionPage() {
       if (pList.length > 0 && !planId) {
         setPlanId(pList[0].id);
       }
+    }).catch((err) => {
+      console.error('Failed to load catalogs:', err);
     });
   }, []);
 
