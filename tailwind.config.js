@@ -63,7 +63,7 @@ export default {
         'glass-card': '0 20px 40px -15px rgba(2, 6, 23, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12)',
         'dropdown': '0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05)',
       },
-      animation: {
+       animation: {
         'slide-in-left': 'slideInLeft 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'slide-in-right': 'slideInRight 350ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
         'slide-in-left-fast': 'slideInLeftFast 350ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
@@ -137,5 +137,5 @@ export default {
       },
     },
   },
-  plugins: [],
+   plugins: [],
 };
