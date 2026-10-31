@@ -16,8 +16,8 @@ export function adaptError(err) {
   }
 
   // Network / server offline
-  if (err.code === 'ERR_NETWORK' || !err.response) {
-    const netErr = new Error("Can't reach the server. Please check your internet or try again later.");
+  if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || !err.response) {
+    const netErr = new Error("Can't reach the server. Please try again.");
     netErr.code = 'NETWORK_ERROR';
     netErr.originalError = err;
     return netErr;
@@ -34,6 +34,8 @@ export function adaptError(err) {
     code = 'NOT_FOUND';
   } else if (status === 401) {
     code = 'UNAUTHORIZED';
+  } else if (status === 409 || lowerMsg.includes('already registered') || lowerMsg.includes('already exists')) {
+    code = 'DUPLICATE_EMAIL';
   } else if (lowerMsg.includes('exceed') || lowerMsg.includes('overpay')) {
     code = 'OVERPAYMENT';
   } else if (lowerMsg.includes('cancel')) {

@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast';
 import { adaptError } from './adapters';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, ''),
   headers: {
     'Content-Type': 'application/json',
   },

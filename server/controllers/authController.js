@@ -62,15 +62,15 @@ async function login(req, res, next) {
 async function signup(req, res, next) {
   try {
     const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required.' });
+    if (!name || !name.trim() || !email || !email.trim() || !password) {
+      const msg = 'Name, email, and password are required.';
+      return res.status(400).json({ error: msg, message: msg });
     }
 
     if (!PASSWORD_REGEX.test(password)) {
-      return res.status(400).json({
-        error:
-          'Password must be at least 9 characters long and contain at least one uppercase letter, one lowercase letter, and one special character.',
-      });
+      const msg =
+        'Password must be at least 9 characters long and contain at least one uppercase letter, one lowercase letter, and one special character.';
+      return res.status(400).json({ error: msg, message: msg });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -82,7 +82,8 @@ async function signup(req, res, next) {
     );
 
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Email already registered' });
+      const msg = 'Email already registered';
+      return res.status(409).json({ error: msg, message: msg });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);

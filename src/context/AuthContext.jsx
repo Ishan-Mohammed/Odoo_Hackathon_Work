@@ -54,6 +54,9 @@ export function AuthProvider({ children }) {
 
   const signup = async ({ name, email, password }) => {
     const data = await authApi.signup({ name, email, password });
+    if (data?.token && data?.user) {
+      saveSession(data.token, data.user);
+    }
     return data;
   };
 

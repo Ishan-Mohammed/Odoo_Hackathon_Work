@@ -63,11 +63,8 @@ export default function SignupPage() {
 
     try {
       await signup({ name, email, password });
-      toast.success('Account created successfully! Please sign in.');
-      navigate('/login', {
-        state: { registeredEmail: email },
-        replace: true,
-      });
+      toast.success('Account created successfully!');
+      navigate('/portal', { replace: true });
     } catch (err) {
       if (
         err.response?.status === 409 ||
@@ -76,12 +73,16 @@ export default function SignupPage() {
         err.message?.toLowerCase().includes('already')
       ) {
         const message =
-          err.response?.data?.message || err.message || 'An account with this email address already exists.';
+          err.response?.data?.message || err.response?.data?.error || err.message || 'An account with this email address already exists.';
         setErrors((prev) => ({ ...prev, email: message }));
         toast.error(message);
+      } else if (err.code === 'NETWORK_ERROR' || !err.response || err.status === 0) {
+        const netMsg = "Can't reach the server. Please try again.";
+        setErrors((prev) => ({ ...prev, form: netMsg }));
+        toast.error(netMsg);
       } else {
         const fallbackMsg =
-          err.response?.data?.message || err.message || 'Failed to create account. Please try again.';
+          err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create account. Please try again.';
         toast.error(fallbackMsg);
       }
     } finally {

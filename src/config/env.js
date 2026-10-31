@@ -25,6 +25,8 @@ export function isReal(moduleName) {
   if (USE_MOCK) return false;
 
   const mod = (moduleName || '').toLowerCase();
+  if (USE_REAL_AUTH && mod === 'auth') return true;
+
   if (realModulesSet.size === 0 || realModulesSet.has('all') || realModulesSet.has('*')) {
     return true;
   }
