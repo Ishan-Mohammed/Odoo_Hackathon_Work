@@ -14,7 +14,8 @@ import SignupPage from '../pages/SignupPage';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 
-// Placeholder Pages & Dev Showcase
+// Dashboard, Placeholder Pages & Dev Showcase
+import DashboardPage from '../pages/DashboardPage';
 import GenericPlaceholderPage from '../pages/GenericPlaceholderPage';
 import DevComponentsPage from '../pages/DevComponentsPage';
 import NotFound from '../pages/NotFound';
@@ -71,15 +72,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route
-          path="/dashboard"
-          element={
-            <GenericPlaceholderPage
-              title="Dashboard"
-              subtitle="Overview of recurring revenue metrics, churn, and active subscriptions"
-            />
-          }
-        />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route
           path="/customers"
           element={
