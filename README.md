@@ -6,7 +6,7 @@
 ![Stack](https://img.shields.io/badge/stack-React%20%7C%20Express%20%7C%20PostgreSQL-0ea5e9)
 ![Billing](https://img.shields.io/badge/billing-idempotent-10b981)
 
-**Team:** `<TEAM NAME>` · **Hackathon:** `<HACKATHON NAME>` · **Round:** Virtual round
+**Team:** `<TEAM NAME>` · **Hackathon:** `<Odoo x Make-A-Ton 9.0 Kochi Hackathon 2026>` · **Round:*1* Virtual round
 **Live demo:** `<DEPLOYED LINK>` · **Demo video:** `<VIDEO LINK>` · **Slides:** `<DECK LINK>`
 
 ---
