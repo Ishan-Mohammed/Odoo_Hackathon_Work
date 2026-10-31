@@ -11,7 +11,10 @@ export default function Logo({ size = 'md', theme = 'dark', asLink = true, class
   }[size] || { icon: 'w-8 h-8', text: 'text-xl' };
 
   const content = (
-    <div className={`inline-flex items-center gap-2.5 font-display font-bold tracking-tight select-none ${className}`}>
+    <div
+      data-brand-logo
+      className={`inline-flex items-center gap-2.5 font-display font-bold tracking-tight select-none ${className}`}
+    >
       {/* Sleek geometric gradient mark */}
       <div className={`relative flex items-center justify-center ${sizeClasses.icon} rounded-xl bg-gradient-to-tr from-brand-600 via-brand-500 to-accent-400 p-0.5 shadow-soft-sm shadow-brand-500/20`}>
         <svg

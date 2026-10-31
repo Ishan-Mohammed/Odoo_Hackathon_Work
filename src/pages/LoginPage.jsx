@@ -8,9 +8,11 @@ import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
 import DemoCredentialChips from '../components/ui/DemoCredentialChips';
 import { useAuth } from '../context/AuthContext';
+import { useIntro } from '../components/auth/IntroContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { introDone } = useIntro();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,10 +33,12 @@ export default function LoginPage() {
     }
   }, [location.state]);
 
-  // Autofocus the email field on initial mount
+  // Autofocus the email field on initial mount once intro finishes
   useEffect(() => {
-    emailInputRef.current?.focus();
-  }, []);
+    if (introDone) {
+      emailInputRef.current?.focus();
+    }
+  }, [introDone]);
 
   const validate = () => {
     const newErrors = {};

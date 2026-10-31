@@ -4,6 +4,8 @@ import Logo from '../ui/Logo';
 import { Receipt, TrendingUp, Users, CheckCircle2 } from 'lucide-react';
 import { useMouseGlow } from '../../hooks/useMouseGlow';
 import { useCountUp } from '../../hooks/useCountUp';
+import IntroSplash from '../auth/IntroSplash';
+import { useIntro } from '../auth/IntroContext';
 
 export default function AuthLayout({
   title,
@@ -13,6 +15,7 @@ export default function AuthLayout({
   isLeaving = false,
 }) {
   const location = useLocation();
+  const { introDone, shouldRunIntro } = useIntro();
   const { containerRef, spotlightStyle, cardTiltStyle, parallaxStyle } = useMouseGlow();
   const countUpAmount = useCountUp(13593.6, 900);
 
@@ -20,6 +23,9 @@ export default function AuthLayout({
   const [slideDirection, setSlideDirection] = useState('forward');
 
   useEffect(() => {
+    // Wait until intro finishes before triggering panel slide entrance
+    if (!introDone) return;
+
     // Check if user has already seen the initial brand entrance in this session
     const hasSeen = sessionStorage.getItem('brightloop_auth_seen');
     if (!hasSeen) {
@@ -40,26 +46,30 @@ export default function AuthLayout({
 
     setSlideDirection(currRank < prevRank ? 'backward' : 'forward');
     sessionStorage.setItem('brightloop_last_path', location.pathname);
-  }, [location.pathname]);
+  }, [introDone, location.pathname]);
 
   const formAnimationClass = isLeaving
     ? 'animate-slide-out-right'
+    : !introDone
+    ? ''
     : isInitialMount || slideDirection === 'forward'
     ? 'animate-slide-in-right'
     : 'animate-slide-in-left-fast';
 
   return (
-    <div className="h-dvh w-full flex flex-col lg:flex-row bg-slate-50 overflow-hidden select-none">
-      {/* ========================================================= */}
-      {/* LEFT: BRAND PANEL (~48% desktop, hidden on mobile)         */}
-      {/* Decluttered: Logo, Headline, 3 Benefits, Preview Card     */}
-      {/* ========================================================= */}
-      <div
-        ref={containerRef}
-        className={`hidden lg:flex lg:w-[48%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-brand-950 p-10 xl:p-14 text-white border-r border-slate-800/80 transition-opacity duration-300 ${
-          isLeaving ? 'opacity-40' : 'opacity-100'
-        } ${isInitialMount ? 'animate-slide-in-left' : ''}`}
-      >
+    <>
+      {shouldRunIntro && !introDone && <IntroSplash />}
+      <div className="h-dvh w-full flex flex-col lg:flex-row bg-slate-50 overflow-hidden select-none">
+        {/* ========================================================= */}
+        {/* LEFT: BRAND PANEL (~48% desktop, hidden on mobile)         */}
+        {/* Decluttered: Logo, Headline, 3 Benefits, Preview Card     */}
+        {/* ========================================================= */}
+        <div
+          ref={containerRef}
+          className={`hidden lg:flex lg:w-[48%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-brand-950 p-10 xl:p-14 text-white border-r border-slate-800/80 transition-opacity duration-300 ${
+            isLeaving ? 'opacity-40' : 'opacity-100'
+          } ${isInitialMount && introDone ? 'animate-slide-in-left' : ''}`}
+        >
         {/* Soft Drift Glow Blobs (Parallax shifted) */}
         <div
           style={parallaxStyle}
@@ -79,7 +89,7 @@ export default function AuthLayout({
         <div className="pointer-events-none absolute inset-0 pattern-mesh opacity-60" />
 
         {/* Top: Logo */}
-        <div className="relative z-10">
+        <div className="relative z-10" style={!introDone ? { visibility: 'hidden' } : undefined}>
           <Logo theme="light" />
         </div>
 
@@ -194,7 +204,7 @@ export default function AuthLayout({
       <div className="flex-1 h-full flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 overflow-y-auto">
         <div className={`w-full max-w-[420px] my-auto py-4 ${formAnimationClass}`}>
           {/* Mobile Logo Only */}
-          <div className="lg:hidden flex justify-center mb-6">
+          <div className="lg:hidden flex justify-center mb-6" style={!introDone ? { visibility: 'hidden' } : undefined}>
             <Logo theme="dark" size="md" />
           </div>
 
@@ -224,5 +234,6 @@ export default function AuthLayout({
         </div>
       </div>
     </div>
+    </>
   );
 }
