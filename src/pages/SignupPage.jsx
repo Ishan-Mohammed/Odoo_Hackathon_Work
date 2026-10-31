@@ -23,18 +23,15 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Autofocus the first field
   useEffect(() => {
     nameInputRef.current?.focus();
   }, []);
 
-  // Check validity
   const isPwdValid = isPasswordValid(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const isEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const isNameFilled = name.trim().length > 0;
 
-  // Submit button should only be enabled when all rules pass
   const isFormValid = isPwdValid && passwordsMatch && isEmailFormatValid && isNameFilled;
 
   const handleSignupSubmit = async (e) => {
@@ -67,20 +64,19 @@ export default function SignupPage() {
     try {
       await signup({ name, email, password });
       toast.success('Account created successfully! Please sign in.');
-      // Redirect to login with pre-filled email
       navigate('/login', {
         state: { registeredEmail: email },
         replace: true,
       });
     } catch (err) {
       if (err.response?.status === 409 || err.message?.includes('already registered')) {
-        // Handle inline on email field
         const message =
           err.response?.data?.message || 'An account with this email address already exists.';
         setErrors((prev) => ({ ...prev, email: message }));
         toast.error(message);
       } else {
-        const fallbackMsg = err.response?.data?.message || 'Failed to create account. Please try again.';
+        const fallbackMsg =
+          err.response?.data?.message || 'Failed to create account. Please try again.';
         toast.error(fallbackMsg);
       }
     } finally {
@@ -91,21 +87,20 @@ export default function SignupPage() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Start managing recurring subscriptions in minutes"
+      subtitle="Start managing subscriptions in minutes"
       footerLink={
         <p>
           Already have an account?{' '}
           <Link
             to="/login"
-            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+            className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
           >
             Sign in
           </Link>
         </p>
       }
     >
-      <form onSubmit={handleSignupSubmit} noValidate className="space-y-4">
-        {/* Full Name */}
+      <form onSubmit={handleSignupSubmit} noValidate className="space-y-3.5">
         <Input
           ref={nameInputRef}
           label="Full name"
@@ -123,12 +118,11 @@ export default function SignupPage() {
           }}
         />
 
-        {/* Email Address */}
         <Input
           label="Work email"
           type="email"
           autoComplete="email"
-          placeholder="jane@company.com"
+          placeholder="you@company.com"
           value={email}
           disabled={isLoading}
           required
@@ -140,7 +134,6 @@ export default function SignupPage() {
           }}
         />
 
-        {/* Password */}
         <div>
           <PasswordInput
             label="Password"
@@ -159,13 +152,11 @@ export default function SignupPage() {
             }}
           />
 
-          {/* Live PasswordChecklist */}
-          <div className="mt-2.5">
+          <div className="mt-2">
             <PasswordChecklist password={password} />
           </div>
         </div>
 
-        {/* Confirm Password */}
         <div>
           <PasswordInput
             label="Confirm password"
@@ -188,8 +179,7 @@ export default function SignupPage() {
           />
         </div>
 
-        {/* Submit Button */}
-        <div className="pt-2">
+        <div className="pt-1.5">
           <Button
             type="submit"
             variant="primary"
@@ -201,11 +191,6 @@ export default function SignupPage() {
           >
             Create account
           </Button>
-          {!isFormValid && (
-            <p className="text-[11px] text-slate-400 text-center mt-2">
-              Satisfy all password criteria and matching confirmation to enable submit
-            </p>
-          )}
         </div>
       </form>
     </AuthLayout>

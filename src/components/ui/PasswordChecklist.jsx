@@ -22,33 +22,22 @@ export default function PasswordChecklist({ password = '', className = '' }) {
   const criteria = checkPasswordCriteria(password);
   const passedCount = Object.values(criteria).filter(Boolean).length;
 
-  // Strength label & color
-  let strengthLabel = 'Too weak';
-  let strengthColor = 'bg-rose-500';
-  let strengthWidth = 'w-1/4';
-  let textColor = 'text-rose-600';
+  // Segment colors
+  const getSegmentColor = (index) => {
+    if (index >= passedCount) return 'bg-slate-200';
+    if (passedCount <= 1) return 'bg-rose-500';
+    if (passedCount <= 3) return 'bg-amber-500';
+    return 'bg-emerald-500';
+  };
 
-  if (passedCount === 0) {
-    strengthLabel = 'Enter password';
-    strengthColor = 'bg-slate-200';
-    strengthWidth = 'w-0';
-    textColor = 'text-slate-400';
-  } else if (passedCount <= 2) {
-    strengthLabel = 'Weak';
-    strengthColor = 'bg-rose-500';
-    strengthWidth = 'w-1/3';
-    textColor = 'text-rose-600';
-  } else if (passedCount === 3) {
-    strengthLabel = 'Fair';
-    strengthColor = 'bg-amber-500';
-    strengthWidth = 'w-2/3';
-    textColor = 'text-amber-600';
-  } else if (passedCount === 4) {
-    strengthLabel = 'Strong';
-    strengthColor = 'bg-emerald-500';
-    strengthWidth = 'w-full';
-    textColor = 'text-emerald-600';
-  }
+  const getStrengthLabel = () => {
+    if (passedCount === 0) return { text: 'Empty', color: 'text-slate-400' };
+    if (passedCount <= 1) return { text: 'Weak', color: 'text-rose-600' };
+    if (passedCount <= 3) return { text: 'Fair', color: 'text-amber-600' };
+    return { text: 'Strong', color: 'text-emerald-600' };
+  };
+
+  const strength = getStrengthLabel();
 
   const rules = [
     { key: 'minLength', label: 'At least 9 characters', satisfied: criteria.minLength },
@@ -58,33 +47,38 @@ export default function PasswordChecklist({ password = '', className = '' }) {
   ];
 
   return (
-    <div className={`space-y-2.5 pt-1 ${className}`}>
-      {/* Strength meter bar */}
+    <div className={`space-y-2 pt-1 ${className}`}>
+      {/* Slim 4-segment strength meter bar */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[11px] font-medium">
           <span className="text-slate-500">Password strength</span>
-          <span className={`font-semibold transition-colors duration-200 ${textColor}`}>
-            {strengthLabel}
+          <span className={`font-semibold transition-colors duration-200 ${strength.color}`}>
+            {strength.text}
           </span>
         </div>
-        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 rounded-full ${strengthColor} ${strengthWidth}`}
-          />
+        <div className="grid grid-cols-4 gap-1.5 h-1">
+          {[0, 1, 2, 3].map((segmentIndex) => (
+            <div
+              key={segmentIndex}
+              className={`h-full rounded-full transition-all duration-300 ${getSegmentColor(
+                segmentIndex
+              )}`}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Rules list */}
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+      {/* Compact 2-column rule grid */}
+      <ul className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1">
         {rules.map((rule) => (
           <li
             key={rule.key}
-            className={`flex items-center gap-2 text-xs transition-colors duration-200 ${
-              rule.satisfied ? 'text-slate-800 font-medium' : 'text-slate-400'
+            className={`flex items-center gap-1.5 text-xs transition-colors duration-200 select-none ${
+              rule.satisfied ? 'text-slate-700 font-medium' : 'text-slate-400'
             }`}
           >
             <span
-              className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] transition-all duration-200 shrink-0 ${
+              className={`flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] transition-all duration-200 shrink-0 ${
                 rule.satisfied
                   ? 'bg-emerald-500 text-white scale-100 shadow-sm shadow-emerald-500/20'
                   : 'bg-slate-200 text-transparent scale-90'
@@ -93,7 +87,7 @@ export default function PasswordChecklist({ password = '', className = '' }) {
             >
               <Check className="w-2.5 h-2.5 stroke-[3]" />
             </span>
-            <span>{rule.label}</span>
+            <span className="truncate">{rule.label}</span>
           </li>
         ))}
       </ul>

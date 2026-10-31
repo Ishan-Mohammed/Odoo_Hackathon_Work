@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [bannerError, setBannerError] = useState('');
 
@@ -40,7 +41,7 @@ export default function LoginPage() {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
     }
@@ -66,7 +67,10 @@ export default function LoginPage() {
       const data = await login({ email: loginEmail, password: loginPass });
       toast.success(`Welcome back, ${data.user?.name || 'User'}!`);
 
-      // Determine redirection target
+      // Trigger ~320ms exit animation before redirecting
+      setIsLeaving(true);
+      await new Promise((resolve) => setTimeout(resolve, 320));
+
       const returnUrl = location.state?.from?.pathname;
       if (returnUrl) {
         navigate(returnUrl, { replace: true });
@@ -80,7 +84,6 @@ export default function LoginPage() {
         err.response?.data?.message || 'Invalid email or password. Please check your credentials.';
       setBannerError(message);
       toast.error(message);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -90,7 +93,6 @@ export default function LoginPage() {
     handleLoginSubmit();
   };
 
-  // Demo account one-click chip handler
   const handleSelectDemo = (creds) => {
     setEmail(creds.email);
     setPassword(creds.password);
@@ -103,12 +105,13 @@ export default function LoginPage() {
     <AuthLayout
       title="Welcome back"
       subtitle="Sign in to manage your subscriptions and billing"
+      isLeaving={isLeaving}
       footerLink={
         <p>
           New to Brightloop?{' '}
           <Link
             to="/signup"
-            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+            className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
           >
             Create an account
           </Link>
@@ -120,7 +123,7 @@ export default function LoginPage() {
         <div
           role="alert"
           aria-live="assertive"
-          className="mb-5 flex items-start gap-3 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs animate-fade-in"
+          className="mb-4 flex items-start gap-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs animate-shake"
         >
           <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
           <div className="flex-1">
@@ -130,16 +133,16 @@ export default function LoginPage() {
         </div>
       )}
 
-      <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
+      <form onSubmit={handleFormSubmit} noValidate className="space-y-3.5">
         {/* Email Input */}
         <Input
           ref={emailInputRef}
           label="Email address"
           type="email"
           autoComplete="email"
-          placeholder="name@company.com"
+          placeholder="you@company.com"
           value={email}
-          disabled={isLoading}
+          disabled={isLoading || isLeaving}
           required
           errorMessage={errors.email}
           leftIcon={<Mail className="w-4 h-4" />}
@@ -149,32 +152,30 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Password Input */}
-        <div>
-          <PasswordInput
-            label="Password"
-            placeholder="••••••••••••"
-            autoComplete="current-password"
-            value={password}
-            disabled={isLoading}
-            required
-            errorMessage={errors.password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
-            }}
-          />
-          <div className="flex justify-end mt-1.5">
+        {/* Password Input with top-row Forgot Password link */}
+        <PasswordInput
+          label="Password"
+          placeholder="••••••••••••"
+          autoComplete="current-password"
+          value={password}
+          disabled={isLoading || isLeaving}
+          required
+          errorMessage={errors.password}
+          labelRightSlot={
             <Link
               to="/forgot-password"
-              className="text-xs font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+              className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
             >
               Forgot password?
             </Link>
-          </div>
-        </div>
+          }
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
+          }}
+        />
 
-        {/* Submit Button */}
+        {/* Primary Submit Button */}
         <div className="pt-1">
           <Button
             type="submit"
@@ -182,6 +183,7 @@ export default function LoginPage() {
             size="lg"
             fullWidth
             isLoading={isLoading}
+            disabled={isLeaving}
             rightIcon={<ArrowRight className="w-4 h-4" />}
           >
             Sign in
@@ -189,8 +191,20 @@ export default function LoginPage() {
         </div>
       </form>
 
+      {/* Divider */}
+      <div className="relative my-4">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-200/90" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-slate-50 px-3 text-slate-400 font-medium">
+            or try a demo account
+          </span>
+        </div>
+      </div>
+
       {/* Demo Credential Chips */}
-      <DemoCredentialChips onSelect={handleSelectDemo} disabled={isLoading} />
+      <DemoCredentialChips onSelect={handleSelectDemo} disabled={isLoading || isLeaving} />
     </AuthLayout>
   );
 }

@@ -15,21 +15,21 @@ export default function Button({
   ...props
 }) {
   const baseClasses =
-    'relative inline-flex items-center justify-center font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 active:scale-[0.99] select-none';
+    'group relative inline-flex items-center justify-center font-medium select-none overflow-hidden transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none disabled:shadow-none';
 
   const sizeClasses = {
-    sm: 'text-xs h-8 px-3 rounded-lg gap-1.5',
-    md: 'text-sm h-10 px-4 rounded-xl gap-2',
-    lg: 'text-base h-12 px-6 rounded-xl gap-2.5',
-  }[size] || 'text-sm h-10 px-4 rounded-xl gap-2';
+    sm: 'text-xs h-9 px-3.5 rounded-lg gap-1.5',
+    md: 'text-sm h-11 px-4 rounded-xl gap-2',
+    lg: 'text-sm h-11 px-5 rounded-xl gap-2 font-semibold',
+  }[size] || 'text-sm h-11 px-4 rounded-xl gap-2';
 
   const variantClasses = {
     primary:
-      'bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white shadow-soft-sm hover:shadow-soft-md shadow-brand-600/20 disabled:hover:bg-brand-600 disabled:shadow-none',
+      'bg-gradient-to-r from-brand-600 to-violet-600 hover:from-brand-700 hover:to-violet-700 text-white shadow-brand-btn hover:shadow-brand-btn-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]',
     secondary:
-      'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 shadow-soft-sm hover:border-slate-300 disabled:hover:bg-white',
+      'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-soft-xs hover:border-slate-300 hover:text-slate-900 active:scale-[0.98]',
     ghost:
-      'bg-transparent hover:bg-slate-100/80 text-slate-600 hover:text-slate-900 border-none shadow-none disabled:hover:bg-transparent',
+      'bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-none shadow-none',
   }[variant] || '';
 
   const widthClass = fullWidth ? 'w-full' : '';
@@ -42,6 +42,14 @@ export default function Button({
       className={`${baseClasses} ${sizeClasses} ${variantClasses} ${widthClass} ${className}`}
       {...props}
     >
+      {/* Moving shine light effect on hover */}
+      {variant === 'primary' && !disabled && !isLoading && (
+        <span
+          className="pointer-events-none absolute inset-0 -translate-x-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 group-hover:translate-x-[300%] transition-transform duration-700 ease-out"
+          aria-hidden="true"
+        />
+      )}
+
       {isLoading ? (
         <>
           <svg
@@ -71,7 +79,11 @@ export default function Button({
         <>
           {leftIcon && <span className="inline-flex shrink-0 items-center">{leftIcon}</span>}
           <span>{children}</span>
-          {rightIcon && <span className="inline-flex shrink-0 items-center">{rightIcon}</span>}
+          {rightIcon && (
+            <span className="inline-flex shrink-0 items-center transition-transform duration-150 group-hover:translate-x-[3px]">
+              {rightIcon}
+            </span>
+          )}
         </>
       )}
     </button>

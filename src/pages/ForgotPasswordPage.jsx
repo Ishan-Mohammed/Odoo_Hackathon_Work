@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mail, ArrowLeft, ArrowRight, CheckCircle2, RotateCw } from 'lucide-react';
+import { Mail, ArrowLeft, ArrowRight, RotateCw } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -56,10 +56,9 @@ export default function ForgotPasswordPage() {
     try {
       await forgotPassword({ email: email.trim() });
       setIsSubmitted(true);
-      setCountdown(60); // 60s cooldown
+      setCountdown(60);
       toast.success('Reset link dispatched!');
     } catch (err) {
-      // Security best practice: Don't leak errors, show success view anyway or generic error
       setIsSubmitted(true);
       setCountdown(60);
     } finally {
@@ -78,12 +77,12 @@ export default function ForgotPasswordPage() {
       subtitle={
         isSubmitted
           ? 'We have sent password reset instructions to your address'
-          : "Enter your email and we'll send you a secure reset link"
+          : "Enter your email and we'll send you a secure recovery link"
       }
       footerLink={
         <Link
           to="/login"
-          className="inline-flex items-center gap-1.5 font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+          className="inline-flex items-center gap-1.5 font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to sign in</span>
@@ -97,7 +96,7 @@ export default function ForgotPasswordPage() {
             label="Email address"
             type="email"
             autoComplete="email"
-            placeholder="name@company.com"
+            placeholder="you@company.com"
             value={email}
             disabled={isLoading}
             required
@@ -123,28 +122,31 @@ export default function ForgotPasswordPage() {
           </div>
         </form>
       ) : (
-        <div className="space-y-5 text-center animate-fade-in py-2">
-          {/* Animated Mail icon badge */}
-          <div className="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 border border-brand-100 flex items-center justify-center mx-auto shadow-soft-sm">
-            <Mail className="w-8 h-8 text-brand-600" />
+        <div className="space-y-6 text-center animate-fade-in py-2">
+          {/* Centered icon with subtle ring pulse */}
+          <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-brand-500/15 animate-pulse-ring" />
+            <div className="relative w-14 h-14 rounded-full bg-brand-50 text-brand-600 border border-brand-200/70 flex items-center justify-center shadow-soft-xs">
+              <Mail className="w-6 h-6 text-brand-600" />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm text-slate-600 leading-relaxed">
+            <p className="text-[14px] text-slate-600 leading-relaxed font-sans">
               If an account exists for{' '}
-              <strong className="text-slate-900 font-semibold break-all px-1.5 py-0.5 rounded bg-slate-100">
+              <strong className="text-slate-900 font-semibold break-all px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200/60 inline-block my-0.5">
                 {email}
               </strong>
-              , you will receive an email with instructions to reset your password.
+              , you will receive an email shortly with a password reset link.
             </p>
             <p className="text-xs text-slate-400">
               For security, this link expires in 15 minutes.
             </p>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-3">
+          <div className="pt-4 border-t border-slate-100 space-y-3">
             <p className="text-xs text-slate-500">
-              Didn't receive the email? Check your spam folder or try again.
+              Didn't receive the email? Check your spam folder or request a new link.
             </p>
 
             <Button

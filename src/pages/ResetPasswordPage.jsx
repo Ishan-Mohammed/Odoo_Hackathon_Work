@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { KeyRound, AlertTriangle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ArrowRight } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout';
 import PasswordInput from '../components/ui/PasswordInput';
 import Button from '../components/ui/Button';
@@ -67,20 +67,22 @@ export default function ResetPasswordPage() {
         title="Link expired"
         subtitle="This password recovery link is no longer valid"
       >
-        <div className="space-y-5 text-center animate-fade-in py-2">
-          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto shadow-soft-sm">
-            <AlertTriangle className="w-8 h-8 text-amber-600" />
+        <div className="space-y-6 text-center animate-fade-in py-2">
+          <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shadow-soft-xs">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900">
               Reset link expired
             </h3>
-            <p className="text-sm text-slate-600 leading-relaxed">
+            <p className="text-[14px] text-slate-600 leading-relaxed font-sans">
               {tokenError}
             </p>
             <p className="text-xs text-slate-400">
-              Reset links can only be used once and expire for your security.
+              Reset links can only be used once and expire for your account's protection.
             </p>
           </div>
 
@@ -101,19 +103,22 @@ export default function ResetPasswordPage() {
     return (
       <AuthLayout
         title="Password updated"
-        subtitle="Your Brightloop account credentials have been secured"
+        subtitle="Your Brightloop account credentials have been updated"
       >
-        <div className="space-y-5 text-center animate-fade-in py-2">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-soft-sm">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+        <div className="space-y-6 text-center animate-fade-in py-2">
+          <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-emerald-500/15 animate-pulse-ring" />
+            <div className="relative w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shadow-soft-xs">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900">
               Ready to sign in
             </h3>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Your password has been changed successfully. You can now access your dashboard using your new credentials.
+            <p className="text-[14px] text-slate-600 leading-relaxed font-sans">
+              Your password has been changed successfully. You can now access your account using your new credentials.
             </p>
           </div>
 
@@ -140,7 +145,7 @@ export default function ResetPasswordPage() {
       footerLink={
         <Link
           to="/login"
-          className="font-semibold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
+          className="font-medium text-brand-600 hover:text-brand-700 hover:underline transition-colors"
         >
           Cancel and return to sign in
         </Link>
@@ -164,7 +169,7 @@ export default function ResetPasswordPage() {
             }}
           />
 
-          {/* Live PasswordChecklist */}
+          {/* Compact PasswordChecklist */}
           <div className="mt-2.5">
             <PasswordChecklist password={password} />
           </div>
