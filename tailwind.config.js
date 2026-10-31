@@ -77,8 +77,35 @@ export default {
         'page-enter': 'pageEnter 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'modal-in': 'modalIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'drawer-in': 'drawerIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'aurora-1': 'aurora1 20s ease-in-out infinite alternate',
+        'aurora-2': 'aurora2 20s ease-in-out infinite alternate',
+        'beam-travel': 'beamTravel 4s ease-in-out infinite',
+        'brand-fade-up': 'brandFadeUp 450ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'flow-node-in': 'flowNodeIn 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
       keyframes: {
+        aurora1: {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
+          '50%': { transform: 'translate3d(40px, -25px, 0) scale(1.15)' },
+        },
+        aurora2: {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)' },
+          '50%': { transform: 'translate3d(-35px, 30px, 0) scale(1.18)' },
+        },
+        beamTravel: {
+          '0%': { transform: 'translateY(-100%)', opacity: '0' },
+          '15%': { opacity: '1' },
+          '85%': { opacity: '1' },
+          '100%': { transform: 'translateY(350%)', opacity: '0' },
+        },
+        brandFadeUp: {
+          '0%': { opacity: '0', transform: 'translateY(14px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        flowNodeIn: {
+          '0%': { opacity: '0', transform: 'translateX(-8px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
         slideInLeft: {
           '0%': { transform: 'translateX(-40px)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
